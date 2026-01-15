@@ -82,7 +82,7 @@ LSP is a standard protocol that enables editors (VS Code, Neovim, Vim, etc.) to 
 ```
 drupalls/
 ├── __init__.py
-├── __main__.py              # Entry point (python -m drupalls)
+├── main.py              # Entry point (python -m drupalls)
 ├── lsp/
 │   ├── __init__.py
 │   ├── server.py            # Server creation and setup
@@ -125,7 +125,7 @@ The server needs three things:
 2. Feature registration (hooks for LSP methods)
 3. Entry point to start IO communication
 
-See `drupalls/lsp/server.py` and `drupalls/__main__.py`
+See `drupalls/lsp/server.py` and `drupalls/main.py`
 
 ### Step 3: Implement Text Synchronization
 

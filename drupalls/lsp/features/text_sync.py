@@ -44,7 +44,10 @@ def register_text_sync_handlers(server: LanguageServer):
         # You can access it later with: ls.workspace.get_text_document(uri)
     
     @server.feature(TEXT_DOCUMENT_DID_CHANGE)
-    def did_change(ls: LanguageServer, params: DidChangeTextDocumentParams):
+    def did_change(
+        ls: LanguageServer,
+        params: DidChangeTextDocumentParams,
+    ):
         """
         Called when the document content changes.
         

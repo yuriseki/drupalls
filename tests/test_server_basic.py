@@ -26,7 +26,7 @@ def test_server_has_text_sync_features():
     server = create_server()
     
     # Check that the didOpen handler is registered
-    assert TEXT_DOCUMENT_DID_OPEN in server.feature_manager._features
+    assert TEXT_DOCUMENT_DID_OPEN in server.protocol.fm._features
 
 
 def test_server_has_completion_feature():
@@ -34,7 +34,7 @@ def test_server_has_completion_feature():
     server = create_server()
     
     # Check that completion handler is registered
-    assert TEXT_DOCUMENT_COMPLETION in server.feature_manager._features
+    assert TEXT_DOCUMENT_COMPLETION in server.protocol.fm._features
 
 
 def test_server_has_hover_feature():
@@ -42,4 +42,4 @@ def test_server_has_hover_feature():
     server = create_server()
     
     # Check that hover handler is registered
-    assert TEXT_DOCUMENT_HOVER in server.feature_manager._features
+    assert TEXT_DOCUMENT_HOVER in server.protocol.fm._features
