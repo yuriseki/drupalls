@@ -1,7 +1,8 @@
 from pathlib import Path
 
-from lsprotocol.types import LogMessageParams, MessageType
+from lsprotocol.types import CompletionList, CompletionParams, LogMessageParams, MessageType
 
+from drupalls.lsp.capabilities.capabilities import CapabilityManager
 from drupalls.lsp.drupal_language_server import DrupalLanguageServer
 from drupalls.lsp.features.completion import register_completion_handler
 from drupalls.lsp.features.hover import register_hover_handler
@@ -23,6 +24,8 @@ def create_server() -> DrupalLanguageServer:
 
     # Store cache on server instance
     server.workspace_cache = None
+
+    server.capability_manager = None
 
     @server.feature("initialize")
     async def initialize(ls: DrupalLanguageServer, params):
@@ -54,9 +57,22 @@ def create_server() -> DrupalLanguageServer:
         message = LogMessageParams(MessageType.Info, f"Loaded {count} services")
         ls.window_log_message(message)
 
+        # Initialize capability manager
+        ls.capability_manager = CapabilityManager(ls)
+        ls.capability_manager.register_all()
+
     # Register all feature handlers
     register_text_sync_handlers(server)
-    register_completion_handler(server)
-    register_hover_handler(server)
+
+    # Register aggregated handlers
+    from lsprotocol.types import TEXT_DOCUMENT_COMPLETION
+    @server.feature(TEXT_DOCUMENT_COMPLETION)
+    async def completion(ls: DrupalLanguageServer, params: CompletionParams):
+        if ls.capability_manager:
+            return await ls.capability_manager.handle_completion(params)
+        return CompletionList(is_incomplete=False, items=[])
+
+    # register_completion_handler(server)
+    # register_hover_handler(server)
 
     return server
