@@ -12,6 +12,7 @@ from drupalls.workspace.cache import (
 )
 from drupalls.workspace.utils import calculate_file_hash
 
+
 @dataclass
 class ServiceDefinition(CachedDataBase):
     """Represents a parsed Drupal service definition."""
@@ -50,15 +51,18 @@ class ServicesCache(CachedWorkspace):
         - modules/contrib/*/[module].services.yml
         - modules/custom/*/[module].services.yml
         """
-        patterns = [
-            "core/**/*.services.yml",
-            "modules/**/*.services.yml",
-            "profiles/**/*.services.yml",
-            "themes/**/*.services.yml",
-        ]
+        base_dirs = ["core", "modules", "profiles", "themes"]
 
-        for pattern in patterns:
-            for services_file in self.workspace_root.glob(pattern):
+        for base_name in base_dirs:
+            # Get the actual directory object (e.g., /root/core)
+            base_path = self.workspace_root / base_name
+
+            if not base_path.is_dir():
+                continue
+
+            # rglob handles the recursion automatically
+            # It will find core/core.services.yml AND core/subdir/other.services.yml
+            for services_file in base_path.rglob("*.services.yml"):
                 if services_file.is_file():
                     await self.parse_services_file(services_file)
 
@@ -67,6 +71,15 @@ class ServicesCache(CachedWorkspace):
         try:
             # Calculate file hash for cache invalidation
             file_hash = calculate_file_hash(file_path)
+
+            # Add constructors used in Drupal core services.
+            def construct_ref(loader, node):
+                # This simple constructor just returns the value as a string/scalar
+                return loader.construct_scalar(node)
+
+            custom_tags = ['!tagged_iterator', '!Ref', '!Sub', '!GetAtt', '!Base64']
+            for custom_tag in custom_tags:
+                yaml.SafeLoader.add_constructor(custom_tag, construct_ref)
 
             # Read and parse YAML
             with open(file_path, "r", encoding="utf-8") as f:
@@ -86,14 +99,15 @@ class ServicesCache(CachedWorkspace):
                 tags = service_def.get("tags", [])
 
                 # Create service definition
-                self._services[id] = ServiceDefinition(
-                    id=id,
-                    description=class_name,
-                    class_name=class_name,
-                    arguments=arguments,
-                    tags=tags,
-                    file_path=file_path,
-                )
+                if (class_name):
+                    self._services[id] = ServiceDefinition(
+                        id=id,
+                        description=class_name,
+                        class_name=class_name,
+                        arguments=arguments,
+                        tags=tags,
+                        file_path=file_path,
+                    )
 
             # Track file info for invalidation
             self.file_info[file_path] = FileInfo(

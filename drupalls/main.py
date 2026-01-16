@@ -14,7 +14,7 @@ def main():
     """Start the language server on stdin/stdout."""
 
     # Check if we're in debug mode
-    if os.getenv("DEBUG"):
+    if os.getenv("DEBUG_DRUPALLS"):
         print("🔧 DRUPAL Server starting in DEBUG mode")
         print("📡 Waiting for debugger to attach on port 5678...")
         # Enable debugpy if in debug mode

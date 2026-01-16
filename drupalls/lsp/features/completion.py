@@ -9,6 +9,7 @@ This provides suggestions as the user types. For Drupal, we want to suggest:
 - Field types
 """
 
+import re
 from lsprotocol.types import (
     CompletionParams,
     CompletionList,
@@ -17,6 +18,8 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_COMPLETION,
 )
 from pygls.lsp.server import LanguageServer
+
+from drupalls.lsp.server import DrupalLanguageServer
 
 
 def register_completion_handler(server: LanguageServer):
@@ -27,7 +30,7 @@ def register_completion_handler(server: LanguageServer):
     """
     
     @server.feature(TEXT_DOCUMENT_COMPLETION)
-    def completions(ls: LanguageServer, params: CompletionParams):
+    def completions(ls: DrupalLanguageServer, params: CompletionParams):
         """
         Provide completion items at the cursor position.
         
@@ -47,6 +50,15 @@ def register_completion_handler(server: LanguageServer):
         # Simple example: provide Drupal hook completions
         # In a real implementation, you'd parse the context and provide relevant completions
         items = []
+
+        # Check if cache is available.
+        if not ls.workspace_cache:
+            return CompletionList(is_incomplete=False, items=[])
+
+        # Get the ServicesCache
+        services_cache = ls.workspace_cache.caches.get("services")
+        drupal_services = services_cache.get_all()
+
         
         # Example: If user is typing "hook_", suggest common hooks
         if "hook_" in current_line:
@@ -73,24 +85,20 @@ def register_completion_handler(server: LanguageServer):
                 )
         
         # Example: If user is typing "\\Drupal::service(", suggest services
-        if "::service(" in current_line or "::service('" in current_line or '::service("' in current_line:
-            drupal_services = [
-                ("entity_type.manager", "Entity Type Manager"),
-                ("database", "Database connection"),
-                ("cache.default", "Default cache backend"),
-                ("config.factory", "Configuration factory"),
-                ("current_user", "Current user"),
-                ("logger.factory", "Logger factory"),
-                ("messenger", "Messenger service"),
-            ]
-            
-            for service_name, description in drupal_services:
+        SERVICE_PATTERN = re.compile(r'::service\([\'"]?|getContainer\(\)->get\([\'"]?')
+        if SERVICE_PATTERN.search(current_line):
+            for _, service in drupal_services.items():
+                documentation = ""
+                if service.file_path:
+                    relative_path = service.file_path.relative_to(ls.workspace_cache.workspace_root)
+                    documentation = f"Defined in: {relative_path}"
+
                 items.append(
                     CompletionItem(
-                        label=service_name,
+                        label=service.id,
                         kind=CompletionItemKind.Value,
-                        detail="Drupal Service",
-                        documentation=description,
+                        detail=service.description,
+                        documentation=documentation,
                     )
                 )
         

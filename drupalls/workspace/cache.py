@@ -39,6 +39,7 @@ class CachedDataBase:
 class CachedWorkspace(ABC):
     def __init__(self, workspace_cache: WorkspaceCache) -> None:
         self.workspace_cache = workspace_cache
+        self.project_root = workspace_cache.project_root
         self.workspace_root = workspace_cache.workspace_root
         self.file_info = workspace_cache.file_info
 
@@ -107,10 +108,11 @@ class WorkspaceCache:
     """
 
     def __init__(
-        self, workspace_root: Path, caches: dict[str, CachedWorkspace] | None = None
+        self, project_root: Path, workspace_root: Path, caches: dict[str, CachedWorkspace] | None = None
     ):
         from drupalls.workspace.services_cache import ServicesCache
 
+        self.project_root = project_root
         self.workspace_root = workspace_root
 
         # In-memory caches
@@ -124,7 +126,7 @@ class WorkspaceCache:
         self._last_scan: datetime | None = None
 
         # Configuration
-        self.cache_dir = workspace_root / ".drupalls" / "cache"
+        self.cache_dir = project_root / ".drupalls" / "cache"
         self.enable_disk_cache = True  # Optional: persist to disk
 
     async def initialize(self):
