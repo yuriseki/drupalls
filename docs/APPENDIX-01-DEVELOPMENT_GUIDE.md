@@ -1399,4 +1399,4 @@ Both servers working together! 🎉
 - **Phpactor Documentation:** https://phpactor.readthedocs.io/
 - **Phpactor Extensions:** https://github.com/phpactor/language-server-phpactor-extensions
 - **LSP Specification:** https://microsoft.github.io/language-server-protocol/
-- **Your DrupalLS Docs:** See `05-DEVELOPMENT_GUIDE.md` and `01-QUICK_START.md`
+- **Your DrupalLS Docs:** See `APPENDIX-01-DEVELOPMENT_GUIDE.md` and `01-QUICK_START.md`

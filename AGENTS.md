@@ -141,11 +141,75 @@ DrupalLS Architecture
 
 ## Documentation Standards
 
+### Documentation Classification Strategy
+
+DrupalLS documentation is organized using a **progressive learning hierarchy**:
+
+#### **Core Documentation (01-04): Essential Architecture**
+These are **numbered sequentially** and should be read in order for foundational understanding:
+
+- **Purpose**: Teach core architecture patterns and design decisions
+- **Reading Order**: Linear, sequential (read 01 → 02 → 03 → 04)
+- **Content Type**: High-level architecture, design patterns, conceptual overview
+- **Target**: Every developer working with DrupalLS needs this knowledge
+- **Examples**: 
+  - `01-QUICK_START.md` - Entry point with architecture overview
+  - `02-WORKSPACE_CACHE_ARCHITECTURE.md` - Cache plugin system design
+  - `03-CAPABILITY_PLUGIN_ARCHITECTURE.md` - Capability plugin system design
+  - `04-STORAGE_STRATEGY.md` - In-memory caching rationale
+
+#### **Appendices (APPENDIX-01 to APPENDIX-99): Reference & Implementation**
+These are **numbered with APPENDIX prefix** and consulted as needed:
+
+- **Purpose**: Detailed reference, implementation guides, specific techniques
+- **Reading Order**: Non-linear, on-demand (reference when needed)
+- **Content Type**: API documentation, step-by-step guides, best practices, lookup tables
+- **Target**: Developers implementing specific features or looking up details
+- **Examples**:
+  - `APPENDIX-01-DEVELOPMENT_GUIDE.md` - Comprehensive LSP reference (1400+ lines)
+  - `APPENDIX-02-LSP_FEATURES_REFERENCE.md` - Quick lookup table
+  - `APPENDIX-03-CACHE_USAGE.md` - API usage guide
+  - `APPENDIX-06-COMPLETION_WITH_CACHE.md` - Step-by-step implementation guide
+
+#### **Classification Criteria**
+
+Use these criteria to determine if a document should be core or appendix:
+
+| Criteria | Core (01-04) | Appendix (01-99) |
+|----------|-------------|------------------|
+| **Purpose** | Architectural understanding | Implementation details |
+| **Length** | Concise (< 1000 lines) | Can be very long (1000+ lines) |
+| **Usage** | Read once, foundational | Reference repeatedly |
+| **Content** | "What and Why" | "How" |
+| **Dependencies** | Standalone, sequential | May reference core docs |
+| **Examples** | Design patterns, architecture | API docs, step-by-step guides |
+
+#### **Progressive Learning Path**
+
+```
+Start Here ↓
+01-QUICK_START.md (Architecture Overview)
+    ↓
+02-WORKSPACE_CACHE_ARCHITECTURE.md (Cache Design)
+03-CAPABILITY_PLUGIN_ARCHITECTURE.md (Capability Design)  
+04-STORAGE_STRATEGY.md (Storage Decisions)
+    ↓
+Now you understand the architecture!
+    ↓
+Reference Appendices As Needed:
+APPENDIX-01 (Full LSP Guide)
+APPENDIX-03 (Cache API)
+APPENDIX-06 (Build Completion Feature)
+etc.
+```
+
 ### File Naming Convention
 
-- `NN-UPPERCASE_WITH_UNDERSCORES.md` - Architecture/concept docs (e.g., `03-CAPABILITY_PLUGIN_ARCHITECTURE.md`)
-- Place in `docs/` folder
-- Use descriptive names that indicate content
+- **Core docs**: `NN-UPPERCASE_WITH_UNDERSCORES.md` (e.g., `03-CAPABILITY_PLUGIN_ARCHITECTURE.md`)
+- **Appendices**: `APPENDIX-NN-UPPERCASE_WITH_UNDERSCORES.md` (e.g., `APPENDIX-06-COMPLETION_WITH_CACHE.md`)
+- **Numbering**: Use zero-padded 2-digit numbers (01, 02, ... 99)
+- **Location**: Place all documentation in `docs/` folder
+- **Naming**: Use descriptive names that clearly indicate content
 
 ### Document Structure Template
 
@@ -215,16 +279,16 @@ CapabilityManager
 - `docs/04-STORAGE_STRATEGY.md` - Why in-memory vs SQLite
 
 ### Implementation Guides
-- `docs/10-COMPLETION_WITH_CACHE.md` - Building completion features
-- `docs/11-SERVICE_CLASS_DEFINITION_GUIDE.md` - Go-to-definition implementation
-- `docs/08-DRUPAL_ROOT_DETECTION.md` - Finding Drupal project root
-- `docs/09-FILE_PATH_BEST_PRACTICES.md` - Working with file paths
+- `docs/APPENDIX-06-COMPLETION_WITH_CACHE.md` - Building completion features
+- `docs/APPENDIX-07-SERVICE_CLASS_DEFINITION_GUIDE.md` - Go-to-definition implementation
+- `docs/APPENDIX-04-DRUPAL_ROOT_DETECTION.md` - Finding Drupal project root
+- `docs/APPENDIX-05-FILE_PATH_BEST_PRACTICES.md` - Working with file paths
 
 ### Reference Documentation
-- `docs/05-DEVELOPMENT_GUIDE.md` - Complete LSP feature reference (1400+ lines)
-- `docs/06-LSP_FEATURES_REFERENCE.md` - Quick lookup table of all LSP features
-- `docs/07-CACHE_USAGE.md` - How to use WorkspaceCache API
-- `docs/13-QUICK_REFERENCE_CACHE.md` - Cache quick reference
+- `docs/APPENDIX-01-DEVELOPMENT_GUIDE.md` - Complete LSP feature reference (1400+ lines)
+- `docs/APPENDIX-02-LSP_FEATURES_REFERENCE.md` - Quick lookup table of all LSP features
+- `docs/APPENDIX-03-CACHE_USAGE.md` - How to use WorkspaceCache API
+- `docs/APPENDIX-09-QUICK_REFERENCE_CACHE.md` - Cache quick reference
 
 ### Project Overview
 - `README.md` - Project introduction, setup instructions
@@ -345,7 +409,7 @@ When documenting a feature, answer these questions:
 - Capability plugin architecture
 
 ### In Progress 🔄
-- Service definition (YAML → PHP class) - documented in `docs/11-SERVICE_CLASS_DEFINITION_GUIDE.md`
+- Service definition (YAML → PHP class) - documented in `docs/APPENDIX-07-SERVICE_CLASS_DEFINITION_GUIDE.md`
 - Hook completion and hover
 - Config schema support
 - Performance optimization

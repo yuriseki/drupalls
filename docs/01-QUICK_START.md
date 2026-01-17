@@ -1,289 +1,505 @@
-# Drupal Language Server - Quick Start
+# DrupalLS Quick Start Guide
+
+## What is DrupalLS?
+
+**DrupalLS** is a complete Language Server Protocol (LSP) implementation for Drupal development built with Python and pygls v2. It provides intelligent IDE features like autocompletion, hover information, and go-to-definition for Drupal-specific constructs.
 
 ## What We Built
 
-A working Language Server Protocol implementation for Drupal using pygls v2 with:
+✅ **Plugin Architecture** - Extensible capability and cache system  
+✅ **Services Support** - Completion, hover, and definition for Drupal services  
+✅ **Workspace Cache** - Fast in-memory caching (< 1ms lookups)  
+✅ **Text Synchronization** - Real-time file tracking  
+✅ **Smart Detection** - Automatic Drupal root detection  
 
-✅ **Text Synchronization** - Tracks open files and changes
-✅ **Autocomplete** - Suggests Drupal hooks and services
-✅ **Hover Information** - Shows documentation for Drupal APIs
-✅ **Extensible Architecture** - Easy to add more features
-
-## File Structure
+## Project Structure
 
 ```
 drupalls/
-├── __main__.py                    # Entry point
 ├── lsp/
-│   ├── server.py                  # Server creation
-│   ├── capabilities.py            # LSP capabilities list
+│   ├── server.py                           # Server creation (create_server())
+│   ├── drupal_language_server.py           # Custom LanguageServer subclass
+│   ├── capabilities/
+│   │   ├── capabilities.py                 # Capability base classes & CapabilityManager
+│   │   └── services_capabilities.py        # Services completion/hover/definition
 │   └── features/
-│       ├── text_sync.py          # Document tracking
-│       ├── completion.py         # Autocomplete
-│       └── hover.py              # Hover info
-test/
-└── test_server_basic.py          # Basic tests
+│       └── text_sync.py                    # Document synchronization handlers
+├── workspace/
+│   ├── cache.py                            # WorkspaceCache & CachedWorkspace base
+│   ├── services_cache.py                   # ServicesCache implementation
+│   └── utils.py                            # File utilities (hashing, etc.)
+├── utils/
+│   └── find_files.py                       # Drupal root detection
+└── main.py                                 # Entry point
 ```
 
-## How It Works
+## Architecture Overview
 
-### 1. Server Creation (`drupalls/lsp/server.py`)
+### 1. Plugin System
+
+DrupalLS uses a **dual plugin architecture**:
+
+```
+Server Initialization
+    ↓
+WorkspaceCache (manages cached data)
+├── caches: dict[str, CachedWorkspace]
+│   ├── "services" → ServicesCache
+│   ├── "hooks" → HooksCache (future)
+│   └── "config" → ConfigCache (future)
+    ↓
+CapabilityManager (manages LSP features)
+├── capabilities: dict[str, Capability]
+│   ├── "services_completion" → ServicesCompletionCapability
+│   ├── "services_hover" → ServicesHoverCapability
+│   ├── "services_definition" → ServicesDefinitionCapability
+│   └── "services_yaml_definition" → ServicesYamlDefinitionCapability
+```
+
+### 2. Key Components
+
+#### DrupalLanguageServer
+
+Custom LanguageServer subclass with Drupal-specific attributes:
 
 ```python
-from pygls.lsp.server import LanguageServer
+# drupalls/lsp/drupal_language_server.py
+from pygls.server import LanguageServer
 
-server = LanguageServer("drupalls", "0.1.0")
+class DrupalLanguageServer(LanguageServer):
+    """Extended LanguageServer with Drupal-specific attributes."""
+    
+    def __init__(self, name: str, version: str):
+        super().__init__(name, version)
+        self.workspace_cache: WorkspaceCache | None = None
+        self.capability_manager: CapabilityManager | None = None
 ```
 
-The `LanguageServer` class handles all JSON-RPC communication with editors.
+#### WorkspaceCache
 
-### 2. Feature Registration
-
-Features are registered using decorators:
+Central manager for all parsed Drupal data:
 
 ```python
-@server.feature(TEXT_DOCUMENT_COMPLETION)
-def completions(ls: LanguageServer, params: CompletionParams):
-    # Return completion items
-    return CompletionList(items=[...])
+# drupalls/workspace/cache.py
+class WorkspaceCache:
+    """
+    Manages all parsed workspace data in memory.
+    
+    Attributes:
+        project_root: Project root directory
+        workspace_root: Drupal root directory
+        caches: Dict of cache plugins (by name)
+        file_info: File state tracking for invalidation
+    """
+    
+    def __init__(self, project_root: Path, workspace_root: Path):
+        self.project_root = project_root
+        self.workspace_root = workspace_root
+        self.caches = {
+            "services": ServicesCache(self)
+        }
+        self.file_info: dict[Path, FileInfo] = {}
+    
+    async def initialize(self):
+        """Scan workspace and populate all caches."""
+        for cache in self.caches.values():
+            await cache.initialize()
 ```
 
-### 3. Editor Communication
+#### CapabilityManager
 
+Coordinates all LSP capability handlers:
+
+```python
+# drupalls/lsp/capabilities/capabilities.py
+class CapabilityManager:
+    """
+    Manages all LSP capabilities using plugin pattern.
+    
+    Delegates requests to appropriate capability handlers based on context.
+    """
+    
+    def __init__(self, server: DrupalLanguageServer):
+        self.server = server
+        self.capabilities = {
+            "services_completion": ServicesCompletionCapability(server),
+            "services_hover": ServicesHoverCapability(server),
+            "services_definition": ServicesDefinitionCapability(server),
+            "services_yaml_definition": ServicesYamlDefinitionCapability(server),
+        }
+    
+    async def handle_completion(self, params: CompletionParams) -> CompletionList:
+        """Aggregate results from all completion capabilities."""
+        all_items = []
+        for capability in self.get_capabilities_by_type(CompletionCapability):
+            if await capability.can_handle(params):
+                result = await capability.complete(params)
+                all_items.extend(result.items)
+        return CompletionList(is_incomplete=False, items=all_items)
 ```
-User types in editor
-    ↓
-Editor sends JSON-RPC request
-    ↓
-Server handler processes request
-    ↓
-Server returns results
-    ↓
-Editor displays to user
+
+## How It Works: Server Initialization
+
+```python
+# drupalls/lsp/server.py
+def create_server() -> DrupalLanguageServer:
+    """Create and configure the language server."""
+    server = DrupalLanguageServer("drupalls", "0.1.0")
+    
+    # Initialize empty attributes
+    server.workspace_cache = None
+    server.capability_manager = None
+    
+    @server.feature("initialize")
+    async def initialize(ls: DrupalLanguageServer, params):
+        """Initialize workspace and capabilities."""
+        
+        # 1. Get workspace root from LSP params
+        workspace_root = Path(params.root_uri.replace("file://", ""))
+        
+        # 2. Find Drupal root
+        drupal_root = find_drupal_root(workspace_root)
+        if drupal_root is None:
+            ls.window_log_message(LogMessageParams(
+                MessageType.Info, 
+                "Drupal installation not found"
+            ))
+            return
+        
+        # 3. Initialize workspace cache
+        ls.workspace_cache = WorkspaceCache(workspace_root, drupal_root)
+        await ls.workspace_cache.initialize()
+        
+        # 4. Initialize capability manager
+        ls.capability_manager = CapabilityManager(ls)
+        ls.capability_manager.register_all()
+        
+        # 5. Log success
+        count = len(ls.workspace_cache.caches["services"].get_all())
+        ls.window_log_message(LogMessageParams(
+            MessageType.Info,
+            f"Loaded {count} services"
+        ))
+    
+    # Register aggregated LSP handlers
+    @server.feature(TEXT_DOCUMENT_COMPLETION)
+    async def completion(ls: DrupalLanguageServer, params: CompletionParams):
+        if ls.capability_manager:
+            return await ls.capability_manager.handle_completion(params)
+        return CompletionList(is_incomplete=False, items=[])
+    
+    @server.feature(TEXT_DOCUMENT_HOVER)
+    async def hover(ls: DrupalLanguageServer, params: HoverParams):
+        if ls.capability_manager:
+            return await ls.capability_manager.handle_hover(params)
+        return None
+    
+    @server.feature(TEXT_DOCUMENT_DEFINITION)
+    async def definition(ls: DrupalLanguageServer, params: DefinitionParams):
+        if ls.capability_manager:
+            return await ls.capability_manager.handle_definition(params)
+        return None
+    
+    # Register text synchronization handlers
+    register_text_sync_handlers(server)
+    
+    return server
+```
+
+## How It Works: Capability Plugins
+
+### Example: Services Completion
+
+```python
+# drupalls/lsp/capabilities/services_capabilities.py
+class ServicesCompletionCapability(CompletionCapability):
+    """Provides completion for Drupal service names."""
+    
+    @property
+    def name(self) -> str:
+        return "services_completion"
+    
+    @property
+    def description(self) -> str:
+        return "Autocomplete Drupal service names in ::service() calls"
+    
+    async def can_handle(self, params: CompletionParams) -> bool:
+        """Check if cursor is in a service context."""
+        if not self.workspace_cache:
+            return False
+        
+        # Get document and line
+        doc = self.server.workspace.get_text_document(params.text_document.uri)
+        line = doc.lines[params.position.line]
+        
+        # Check for service patterns
+        return bool(SERVICE_PATTERN.search(line))
+    
+    async def complete(self, params: CompletionParams) -> CompletionList:
+        """Provide service name completions."""
+        # Get services cache
+        services_cache = self.workspace_cache.caches.get("services")
+        if not services_cache:
+            return CompletionList(is_incomplete=False, items=[])
+        
+        # Get all services
+        all_services = services_cache.get_all()
+        
+        # Build completion items
+        items = []
+        for service_id, service_def in all_services.items():
+            items.append(CompletionItem(
+                label=service_id,
+                kind=CompletionItemKind.Value,
+                detail=service_def.class_name,
+                documentation=f"Defined in: {service_def.file_path}",
+                insert_text=service_id,
+            ))
+        
+        return CompletionList(is_incomplete=False, items=items)
+```
+
+## How It Works: Cache Plugins
+
+### Example: Services Cache
+
+```python
+# drupalls/workspace/services_cache.py
+class ServicesCache(CachedWorkspace):
+    """Caches Drupal service definitions from *.services.yml files."""
+    
+    def __init__(self, workspace_cache: WorkspaceCache):
+        super().__init__(workspace_cache)
+        self._services: dict[str, ServiceDefinition] = {}
+    
+    async def scan(self):
+        """Scan all *.services.yml files."""
+        base_dirs = ["core", "modules", "profiles", "themes"]
+        
+        for base_name in base_dirs:
+            base_path = self.workspace_root / base_name
+            if not base_path.is_dir():
+                continue
+            
+            # Find all .services.yml files recursively
+            for services_file in base_path.rglob("*.services.yml"):
+                if services_file.is_file():
+                    await self.parse_services_file(services_file)
+    
+    async def parse_services_file(self, file_path: Path):
+        """Parse a single .services.yml file."""
+        # Calculate hash for cache invalidation
+        file_hash = calculate_file_hash(file_path)
+        
+        # Parse YAML
+        with open(file_path, "r") as f:
+            data = yaml.safe_load(f)
+        
+        # Extract services
+        services = data.get("services", {})
+        for service_id, service_data in services.items():
+            # Create ServiceDefinition
+            self._services[service_id] = ServiceDefinition(
+                id=service_id,
+                description=service_data.get("class", ""),
+                class_name=service_data.get("class", ""),
+                arguments=service_data.get("arguments", []),
+                tags=service_data.get("tags", []),
+                file_path=file_path,
+                line_number=line_num  # From line tracking
+            )
+        
+        # Track file for invalidation
+        self.file_info[file_path] = FileInfo(
+            path=file_path,
+            hash=file_hash,
+            last_modified=datetime.fromtimestamp(file_path.stat().st_mtime)
+        )
+    
+    def get(self, service_id: str) -> ServiceDefinition | None:
+        """Get a specific service by ID."""
+        return self._services.get(service_id)
+    
+    def get_all(self) -> dict[str, ServiceDefinition]:
+        """Get all services."""
+        return self._services
 ```
 
 ## Running the Server
 
-### Test that it works:
 ```bash
+# Install dependencies
+poetry install
+
+# Run the server
 poetry run python -m drupalls
-```
-(It will wait for input - press Ctrl+C to exit)
 
-### Run tests:
-```bash
+# Run tests
 poetry run pytest -v
+
+# Run with debugging
+poetry run python -m debugpy --listen 5678 --wait-for-client drupalls/main.py
 ```
 
-## Current Features Explained
+## Current Features
 
-### Text Synchronization
-**What:** Keeps server in sync with editor
-**When triggered:** File open/close/change/save
-**Implementation:** `drupalls/lsp/features/text_sync.py`
+### 1. Service Autocompletion
 
-**Example:**
-1. You open `mymodule.module` in VS Code
-2. Editor sends `textDocument/didOpen` notification
-3. Server stores document content
-4. You type - editor sends `textDocument/didChange`
-5. Server updates its copy of the content
+```php
+// Type in PHP file:
+\Drupal::service('entity_type.manager')
+                ↑
+                Suggests all 500+ Drupal services
+```
 
-### Completion (Autocomplete)
-**What:** Suggests code as you type
-**When triggered:** User types, or Ctrl+Space
-**Implementation:** `drupalls/lsp/features/completion.py`
+### 2. Service Hover Information
 
-**Example:**
-1. You type `hook_f` in a PHP file
-2. Editor sends `textDocument/completion` request
-3. Server detects you're typing a hook name
-4. Server returns list of matching hooks:
-   - hook_form_alter
-   - hook_field_widget_form_alter
-   - etc.
-5. Editor shows suggestions
+```php
+// Hover over service name:
+\Drupal::service('logger.factory')
+                ↑
+Shows:
+- **Service ID**: logger.factory
+- **Class**: Drupal\Core\Logger\LoggerChannelFactory
+- **Defined in**: core/core.services.yml:123
+```
 
-**Try adding:** Module names, entity types, field types
+### 3. Go to Definition (PHP → YAML)
 
-### Hover Information
-**What:** Shows documentation on hover
-**When triggered:** Mouse hover or keyboard shortcut
-**Implementation:** `drupalls/lsp/features/hover.py`
+```php
+// Ctrl+Click on service name:
+\Drupal::service('cache.default')
+                ↑
+Jumps to: core/core.services.yml line 45
+```
 
-**Example:**
-1. You hover over `hook_form_alter`
-2. Editor sends `textDocument/hover` request
-3. Server looks up documentation
-4. Server returns markdown with:
-   - Function signature
-   - Parameter descriptions
-   - Link to API docs
-5. Editor shows in popup
+### 4. Go to Definition (YAML → PHP Class)
 
-**Try adding:** More hooks, Drupal services, classes
+```yaml
+# Ctrl+Click on class name in .services.yml:
+services:
+  entity_type.manager:
+    class: Drupal\Core\Entity\EntityTypeManager
+           ↑
+Jumps to: core/lib/Drupal/Core/Entity/EntityTypeManager.php
+```
 
 ## Adding New Features
 
-### Example: Add a new Drupal hook to completion
+### Add a New Cache Type
 
-Edit `drupalls/lsp/features/completion.py`:
-
-```python
-drupal_hooks = [
-    ("hook_form_alter", "Alter forms before rendering"),
-    ("hook_entity_presave", "Act before an entity is saved"),  # ← Add this
-    # ... more hooks
-]
-```
-
-### Example: Add hover info for a service
-
-Edit `drupalls/lsp/features/hover.py`:
+1. Create `drupalls/workspace/hooks_cache.py`:
 
 ```python
-drupal_hook_info = {
-    "hook_form_alter": "...",
-    "entity_type.manager": r"""                                    # ← Add this
-**EntityTypeManager Service**
+from drupalls.workspace.cache import CachedWorkspace, CachedDataBase
 
-Manages entity type definitions.
+@dataclass
+class HookDefinition(CachedDataBase):
+    """Drupal hook definition."""
+    parameters: list[str] = field(default_factory=list)
+    return_type: str | None = None
 
-```php
-$manager = \Drupal::service('entity_type.manager');
-$storage = $manager->getStorage('node');
+class HooksCache(CachedWorkspace):
+    def __init__(self, workspace_cache: WorkspaceCache):
+        super().__init__(workspace_cache)
+        self._hooks: dict[str, HookDefinition] = {}
+    
+    async def scan(self):
+        """Scan *.api.php files for hook definitions."""
+        api_files = self.workspace_root.glob("core/**/*.api.php")
+        for api_file in api_files:
+            await self._parse_api_file(api_file)
+    
+    def get(self, hook_id: str) -> HookDefinition | None:
+        return self._hooks.get(hook_id)
+    
+    def get_all(self) -> dict[str, HookDefinition]:
+        return self._hooks
 ```
-""",
+
+2. Register in `WorkspaceCache.__init__()`:
+
+```python
+self.caches = {
+    "services": ServicesCache(self),
+    "hooks": HooksCache(self),  # Add this
 }
 ```
 
+### Add a New Capability
+
+1. Create capability in `services_capabilities.py`:
+
+```python
+class HooksCompletionCapability(CompletionCapability):
+    @property
+    def name(self) -> str:
+        return "hooks_completion"
+    
+    async def can_handle(self, params: CompletionParams) -> bool:
+        """Check if in hook context."""
+        doc = self.server.workspace.get_text_document(params.text_document.uri)
+        line = doc.lines[params.position.line]
+        return "function" in line and "hook_" in line
+    
+    async def complete(self, params: CompletionParams) -> CompletionList:
+        """Provide hook completions."""
+        hooks_cache = self.workspace_cache.caches.get("hooks")
+        if not hooks_cache:
+            return CompletionList(is_incomplete=False, items=[])
+        
+        all_hooks = hooks_cache.get_all()
+        items = [
+            CompletionItem(
+                label=hook_id,
+                kind=CompletionItemKind.Function,
+                detail=hook.return_type or "void"
+            )
+            for hook_id, hook in all_hooks.items()
+        ]
+        return CompletionList(is_incomplete=False, items=items)
+```
+
+2. Register in `CapabilityManager.__init__()`:
+
+```python
+capabilities = {
+    "services_completion": ServicesCompletionCapability(server),
+    "hooks_completion": HooksCompletionCapability(server),  # Add this
+    # ...
+}
+```
+
+## Key Design Patterns
+
+1. **Plugin Architecture**: Add features without modifying core
+2. **Aggregation Pattern**: CapabilityManager aggregates results from multiple handlers
+3. **Dictionary-Based Registration**: Named access to caches and capabilities
+4. **Type-Safe**: Abstract base classes enforce consistent interfaces
+5. **Async-First**: All I/O operations use async/await
+6. **In-Memory First**: Fast lookups with optional disk persistence
+
 ## Next Steps
 
-### Immediate improvements:
-1. **Better word detection** - Currently very basic
-2. **Context awareness** - Detect if in function, class, etc.
-3. **More completions** - Add services, configs, entity types
-4. **More hover info** - Document all common Drupal APIs
+1. **Read Architecture Docs**:
+   - `02-WORKSPACE_CACHE_ARCHITECTURE.md` - Cache design
+   - `03-CAPABILITY_PLUGIN_ARCHITECTURE.md` - Capability design
+   - `04-STORAGE_STRATEGY.md` - Why in-memory caching
 
-### Medium term:
-1. **Go to Definition** - Jump to service definitions
-2. **Find References** - Find hook implementations
-3. **Diagnostics** - Warn about deprecated functions
-4. **Code Actions** - Quick fixes
+2. **Explore Appendices**:
+   - `APPENDIX-01-DEVELOPMENT_GUIDE.md` - Complete LSP reference (1400+ lines)
+   - `APPENDIX-03-CACHE_USAGE.md` - How to use WorkspaceCache API
+   - `APPENDIX-06-COMPLETION_WITH_CACHE.md` - Building completion features
 
-### Advanced:
-1. **Parse Drupal core** - Auto-generate completions from core
-2. **Project-specific** - Index user's custom modules
-3. **Template support** - Twig file support
-4. **Plugin system** - Let users add custom rules
-
-## Integration with Editors
-
-### VS Code
-Create a VS Code extension that starts the server.
-Example: https://code.visualstudio.com/api/language-extensions/language-server-extension-guide
-
-### Neovim
-Use built-in LSP client:
-```lua
-vim.lsp.start({
-  name = 'drupalls',
-  cmd = {'poetry', 'run', 'python', '-m', 'drupalls'},
-  root_dir = vim.fs.dirname(vim.fs.find({'composer.json'}, { upward = true })[1]),
-})
-```
-
-### Other Editors
-Any editor supporting LSP can use this server!
-- Vim (with vim-lsp or coc.nvim)
-- Emacs (with lsp-mode)
-- Sublime Text (with LSP package)
-- More: https://microsoft.github.io/language-server-protocol/implementors/tools/
-
-## Key Concepts
-
-### 1. Synchronous vs Asynchronous
-pygls v2 uses async/await. All handlers can be async:
-```python
-@server.feature(TEXT_DOCUMENT_COMPLETION)
-async def completions(ls, params):
-    # Can use await here
-    result = await some_async_operation()
-    return result
-```
-
-### 2. Workspace
-`server.workspace` contains all open documents:
-```python
-doc = server.workspace.get_text_document(uri)
-print(doc.source)  # Full content
-print(doc.lines)   # List of lines
-```
-
-### 3. Position and Range
-Positions are 0-indexed:
-```python
-Position(line=0, character=5)  # Line 1, column 6 in editor
-Range(
-    start=Position(line=0, character=0),
-    end=Position(line=0, character=10)
-)
-```
-
-### 4. URIs
-Files are identified by URIs:
-```
-file:///home/user/project/mymodule.module
-```
-
-Convert with:
-```python
-from pathlib import Path
-from pygls.uris import from_fs_path, to_fs_path
-
-uri = from_fs_path(Path("/path/to/file.php"))
-path = Path(to_fs_path(uri))
-```
-
-## Debugging
-
-### Enable logging:
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-```
-
-### Send messages to editor:
-```python
-server.show_message_log("Debug: Completion requested")
-server.show_message("Visible message to user")
-```
-
-### Check what editor sends:
-Look at the JSON-RPC messages. pygls logs them with DEBUG level.
-
-## Common Issues
-
-**Import Error:** `ImportError: cannot import name 'LanguageServer'`
-- Fix: Use `from pygls.lsp.server import LanguageServer` (not `pygls.server`)
-
-**No completions showing:**
-- Check if handler is registered: `TEXT_DOCUMENT_COMPLETION in server.feature_manager._features`
-- Check editor LSP client is configured correctly
-- Look at server logs
-
-**Hover not working:**
-- Verify word detection logic in `get_word_at_position()`
-- Check if word exists in hover info dictionary
-- Test with known words first
+3. **Implement New Features**:
+   - Add hooks support (completion, hover, definition)
+   - Add config schema validation
+   - Add entity type awareness
+   - Add plugin annotation support
 
 ## Resources
 
-- **Full guide:** See `05-DEVELOPMENT_GUIDE.md`
-- **pygls docs:** https://pygls.readthedocs.io/
-- **LSP spec:** https://microsoft.github.io/language-server-protocol/
-- **Drupal API:** https://api.drupal.org/
-
-## Questions?
-
-Read the detailed `05-DEVELOPMENT_GUIDE.md` for in-depth explanations of each component!
+- **LSP Specification**: https://microsoft.github.io/language-server-protocol/
+- **pygls Documentation**: https://pygls.readthedocs.io/
+- **Drupal API**: https://api.drupal.org/
+- **Project README**: `../README.md`

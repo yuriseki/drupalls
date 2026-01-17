@@ -130,7 +130,7 @@ def symbols(ls, params):
 
 ## Resources
 
-- **Full Guide**: See `05-DEVELOPMENT_GUIDE.md` for detailed explanations and examples
+- **Full Guide**: See `APPENDIX-01-DEVELOPMENT_GUIDE.md` for detailed explanations and examples
 - **LSP Spec**: https://microsoft.github.io/language-server-protocol/
 - **pygls Docs**: https://pygls.readthedocs.io/
 - **Quick Start**: See `01-QUICK_START.md` for getting started
@@ -141,6 +141,6 @@ def symbols(ls, params):
 
 1. **Start simple**: Implement basic features first
 2. **Test incrementally**: Test each feature as you build it
-3. **Use examples**: Copy from `05-DEVELOPMENT_GUIDE.md` examples
+3. **Use examples**: Copy from `APPENDIX-01-DEVELOPMENT_GUIDE.md` examples
 4. **Read the spec**: LSP spec has detailed info on each feature
 5. **Debug often**: Use `server.show_message_log()` liberally

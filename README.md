@@ -365,8 +365,8 @@ See [Architecture Documentation](docs/03-CAPABILITY_PLUGIN_ARCHITECTURE.md) for 
 
 ### Getting Started
 - [Quick Start Guide](docs/01-QUICK_START.md) - Get up and running quickly
-- [Development Guide](docs/05-DEVELOPMENT_GUIDE.md) - Complete LSP feature reference (1400+ lines)
-- [LSP Features Reference](docs/06-LSP_FEATURES_REFERENCE.md) - Quick lookup table of all LSP features
+- [Development Guide](docs/APPENDIX-01-DEVELOPMENT_GUIDE.md) - Complete LSP feature reference (1400+ lines)
+- [LSP Features Reference](docs/APPENDIX-02-LSP_FEATURES_REFERENCE.md) - Quick lookup table of all LSP features
 
 ### Architecture & Design
 - [Workspace Cache Architecture](docs/02-WORKSPACE_CACHE_ARCHITECTURE.md) - In-memory caching design
@@ -374,13 +374,13 @@ See [Architecture Documentation](docs/03-CAPABILITY_PLUGIN_ARCHITECTURE.md) for 
 - [Storage Strategy](docs/04-STORAGE_STRATEGY.md) - Why in-memory vs SQLite
 
 ### Implementation Guides
-- [Cache Usage](docs/07-CACHE_USAGE.md) - How to use WorkspaceCache API
-- [Drupal Root Detection](docs/08-DRUPAL_ROOT_DETECTION.md) - Finding Drupal projects
-- [File Path Best Practices](docs/09-FILE_PATH_BEST_PRACTICES.md) - Working with paths
-- [Completion with Cache](docs/10-COMPLETION_WITH_CACHE.md) - Building completion features
-- [Service Class Definition Guide](docs/11-SERVICE_CLASS_DEFINITION_GUIDE.md) - YAML to PHP navigation
-- [Custom Server Attributes](docs/12-CUSTOM_SERVER_ATTRIBUTES.md) - Extending the server
-- [Cache Quick Reference](docs/13-QUICK_REFERENCE_CACHE.md) - Quick cache API lookup
+- [Cache Usage](docs/APPENDIX-03-CACHE_USAGE.md) - How to use WorkspaceCache API
+- [Drupal Root Detection](docs/APPENDIX-04-DRUPAL_ROOT_DETECTION.md) - Finding Drupal projects
+- [File Path Best Practices](docs/APPENDIX-05-FILE_PATH_BEST_PRACTICES.md) - Working with paths
+- [Completion with Cache](docs/APPENDIX-06-COMPLETION_WITH_CACHE.md) - Building completion features
+- [Service Class Definition Guide](docs/APPENDIX-07-SERVICE_CLASS_DEFINITION_GUIDE.md) - YAML to PHP navigation
+- [Custom Server Attributes](docs/APPENDIX-08-CUSTOM_SERVER_ATTRIBUTES.md) - Extending the server
+- [Cache Quick Reference](docs/APPENDIX-09-QUICK_REFERENCE_CACHE.md) - Quick cache API lookup
 
 ### For Contributors
 - [AGENTS.md](AGENTS.md) - Project context for LLMs and documentation writers

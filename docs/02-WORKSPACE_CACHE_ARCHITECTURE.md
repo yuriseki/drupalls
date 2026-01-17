@@ -20,9 +20,9 @@ The DrupalLS workspace cache is a **plugin-based, in-memory caching system** tha
 - **Initial scan**: 2-5 seconds for typical Drupal project
 - **Invalidation**: < 10ms to re-parse single file
 
-## Key Improvement: Dictionary-Based Cache Storage
+## Key Design: Dictionary-Based Cache Storage
 
-**Change in v2**: The `caches` attribute changed from `List[CachedWorkspace]` to `dict[str, CachedWorkspace]`
+The `caches` attribute is implemented as `dict[str, CachedWorkspace]` for named access to cache plugins
 
 ### Benefits
 
@@ -58,11 +58,16 @@ The DrupalLS workspace cache is a **plugin-based, in-memory caching system** tha
 class WorkspaceCache:
     def __init__(
         self, 
+        project_root: Path,
         workspace_root: Path, 
         caches: dict[str, CachedWorkspace] | None = None
     ):
+        self.project_root = project_root        # Project root directory
+        self.workspace_root = workspace_root    # Drupal root directory
+        
         # Default cache registration
         self.caches = caches or {"services": ServicesCache(self)}
+        self.file_info: dict[Path, FileInfo] = {}
 ```
 
 **Iteration** (when needed):
@@ -101,7 +106,8 @@ WorkspaceCache (Coordinator)
 
 **Key attributes**:
 ```python
-workspace_root: Path                    # Drupal project root
+project_root: Path                      # Project root directory
+workspace_root: Path                    # Drupal root directory (where core/ is)
 caches: dict[str, CachedWorkspace]      # Registered cache plugins (keyed by name)
 file_info: dict[Path, FileInfo]         # File state tracking
 cache_dir: Path                         # .drupalls/cache/
@@ -117,7 +123,7 @@ enable_disk_cache: bool                 # Toggle persistence
 **Lifecycle**:
 ```python
 # 1. Server startup
-cache = WorkspaceCache(workspace_root)
+cache = WorkspaceCache(project_root, drupal_root)
 await cache.initialize()  # Loads or scans
 
 # 2. File change event
@@ -164,7 +170,8 @@ def save_to_disk()
 **Shared state** (from parent):
 ```python
 self.workspace_cache: WorkspaceCache  # Parent coordinator
-self.workspace_root: Path             # Project root
+self.project_root: Path               # Project root directory
+self.workspace_root: Path             # Drupal root directory
 self.file_info: Dict[Path, FileInfo]  # Shared file tracking
 ```
 
@@ -422,19 +429,30 @@ def invalidate_file(self, file_path: Path):
 ```python
 # server.py
 from drupalls.workspace.cache import WorkspaceCache
+from drupalls.utils.find_files import find_drupal_root
 from pathlib import Path
 
-class DrupalLanguageServer:
-    async def initialize(self, params):
-        workspace_root = Path(params.root_uri.path)
-        
-        # Create and initialize cache
-        self.workspace_cache = WorkspaceCache(workspace_root)
-        await self.workspace_cache.initialize()
-        
-        # Cache is now ready for use
-        services_cache = self.workspace_cache.caches['services']
-        logger.info(f"Cached {len(services_cache.get_all())} services")
+@server.feature("initialize")
+async def initialize(ls: DrupalLanguageServer, params):
+    # Get workspace root from LSP params
+    workspace_root = Path(params.root_uri.replace("file://", ""))
+    
+    # Find Drupal root
+    project_root = workspace_root
+    drupal_root = find_drupal_root(workspace_root)
+    
+    if drupal_root is None:
+        ls.window_log_message("Drupal installation not found")
+        return
+    
+    # Create and initialize cache
+    ls.workspace_cache = WorkspaceCache(project_root, drupal_root)
+    await ls.workspace_cache.initialize()
+    
+    # Cache is now ready for use
+    services_cache = ls.workspace_cache.caches['services']
+    count = len(services_cache.get_all())
+    ls.window_log_message(f"Loaded {count} services")
 ```
 
 ---

@@ -8,17 +8,19 @@ This guide explains how to update the completion feature (`drupalls/features/com
 
 ### 1. Server Initialization (server.py)
 
-The `DrupalLanguageServer` class has a custom attribute:
+The `DrupalLanguageServer` class has custom attributes:
 ```python
 class DrupalLanguageServer(LanguageServer):
     def __init__(self, name: str, version: str):
         super().__init__(name, version)
         self.workspace_cache: WorkspaceCache | None = None
+        self.capability_manager: CapabilityManager | None = None
 ```
 
 During the `initialize` LSP request:
-- Drupal root is detected
-- WorkspaceCache is instantiated: `ls.workspace_cache = WorkspaceCache(drupal_root)`
+- Workspace root is extracted from LSP params
+- Drupal root is detected using `find_drupal_root(workspace_root)`
+- WorkspaceCache is instantiated: `ls.workspace_cache = WorkspaceCache(project_root, drupal_root)`
 - Cache is initialized: `await ls.workspace_cache.initialize()`
 - Services are loaded and logged
 
@@ -102,7 +104,7 @@ from lsprotocol.types import (
     CompletionItemKind,
     TEXT_DOCUMENT_COMPLETION,
 )
-from drupalls.lsp.server import DrupalLanguageServer
+from drupalls.lsp.drupal_language_server import DrupalLanguageServer
 
 def register_completion_handler(server):
     @server.feature(TEXT_DOCUMENT_COMPLETION)
@@ -121,13 +123,13 @@ def register_completion_handler(server):
         
         # Build completion items
         completion_items = []
-        for service_id, service_data in all_services.items():
+        for service_id, service_def in all_services.items():
             completion_items.append(
                 CompletionItem(
                     label=service_id,
-                    kind=CompletionItemKind.Class,
-                    detail=service_data.description,
-                    documentation=f"Service from: {service_data.file_path}"
+                    kind=CompletionItemKind.Value,
+                    detail=service_def.class_name,
+                    documentation=f"Class: {service_def.class_name}\nDefined in: {service_def.file_path}"
                 )
             )
         
@@ -181,9 +183,16 @@ async def completions(ls: DrupalLanguageServer, params: CompletionParams):
 
 1. **Server Type**: Use `DrupalLanguageServer` instead of `LanguageServer` for type hints
 2. **Cache Access**: `ls.workspace_cache.caches["services"]`
-3. **Get All Services**: `services_cache.get_all()` returns a dict mapping
+3. **Get All Services**: `services_cache.get_all()` returns a `Mapping[str, ServiceDefinition]`
 4. **Guard Clauses**: Always check if `workspace_cache` exists (it may be None)
-5. **Service Data**: Each service has `id`, `description`, and `file_path` attributes
+5. **Service Data**: Each `ServiceDefinition` has these attributes:
+   - `id`: Service ID (e.g., "entity_type.manager")
+   - `description`: Description string
+   - `class_name`: Fully qualified class name
+   - `file_path`: Path to .services.yml file
+   - `line_number`: Line number in YAML file
+   - `arguments`: List of service arguments
+   - `tags`: List of service tags
 
 ## Testing
 
@@ -200,4 +209,4 @@ After updating line 52:
 - `drupalls/workspace/cache.py` - Cache architecture
 - `drupalls/workspace/services_cache.py` - ServicesCache implementation
 - `drupalls/lsp/server.py` - Server initialization
-- `07-CACHE_USAGE.md` - General cache usage guide
+- `APPENDIX-03-CACHE_USAGE.md` - General cache usage guide
