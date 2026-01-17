@@ -183,6 +183,87 @@ Using **nvim-lspconfig**:
 
 4. **Restart Neovim** and open a Drupal PHP file
 
+### IntelliJ IDEA / PhpStorm
+
+Using **LSP4IJ** plugin (by Red Hat Developer):
+
+1. **Install DrupalLS**:
+   ```bash
+   poetry install
+   ```
+
+2. **Install LSP4IJ plugin**:
+   - Open IntelliJ IDEA or PhpStorm
+   - Go to `Settings/Preferences` > `Plugins`
+   - Search for `LSP4IJ` (by Red Hat Developer)
+   - Click `Install` and restart IDE
+
+3. **Create new language server definition**:
+   - Open the `New Language Server` dialog either:
+     - From LSP console menu (View > Tool Windows > LSP Console)
+     - Or from `Settings/Preferences` > `Languages & Frameworks` > `Language Servers` > Click `[+]`
+
+4. **Configure in the Server tab**:
+   ```
+   Server name: DrupalLS
+   Command: /path/to/drupalls/.venv/bin/python /path/to/drupalls/drupalls/main.py
+   ```
+   
+   **Using macros for portability** (if DrupalLS is in your project):
+   ```
+   Command: $PROJECT_DIR$/path/to/drupalls/.venv/bin/python $PROJECT_DIR$/path/to/drupalls/drupalls/main.py
+   ```
+   
+   Available macros:
+   - `$PROJECT_DIR$` - Project root directory
+   - `$USER_HOME$` - User home directory
+   - `$WORKSPACE_DIR$` - Workspace root (can include multiple projects)
+
+5. **Configure in the Mappings tab**:
+   
+   Add file associations for DrupalLS to handle:
+   
+   **Option A: Using File Type** (recommended for standard PHP/YAML):
+   - Click `[+]` to add mapping
+   - Select `File type`: `PHP` (for `.php` files)
+   - Set `Language ID`: `php`
+   
+   **Option B: Using File Name Patterns** (for Drupal-specific extensions):
+   - Click `[+]` to add mapping
+   - Select `File name pattern`: `*.module`
+   - Set `Language ID`: `php`
+   - Repeat for: `*.install`, `*.inc`, `*.theme`
+   
+   **For YAML files**:
+   - Click `[+]` to add mapping
+   - Select `File type`: `YAML` or use pattern `*.services.yml`
+   - Set `Language ID`: `yaml`
+
+6. **Optional: Configuration tab**:
+   
+   If DrupalLS supports custom configuration in the future, you can add JSON settings here:
+   ```json
+   {
+     "drupalls.enable": true,
+     "drupalls.drupalRoot": "${PROJECT_DIR}"
+   }
+   ```
+
+7. **Click OK** to create the language server
+
+8. **Verify setup**:
+   - Open a Drupal PHP file
+   - Type `\Drupal::service('` and check for autocompletion
+   - Check `LSP Console` (View > Tool Windows > LSP Console) for server status
+
+**Troubleshooting**:
+- If the server doesn't start, check the LSP Console for error messages
+- Verify Python path is correct: `/path/to/drupalls/.venv/bin/python --version`
+- Use the `Debug` tab to set trace level to `verbose` for detailed logs
+- If file associations don't work, try restarting the IDE after configuration
+
+**Note**: LSP4IJ can run alongside PhpStorm's built-in PHP support and other language servers like Phpactor. DrupalLS will handle Drupal-specific features while other servers handle general PHP features.
+
 ### Other Editors
 
 DrupalLS follows the LSP specification and works with any LSP-compatible editor:
