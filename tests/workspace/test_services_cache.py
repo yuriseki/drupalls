@@ -17,7 +17,7 @@ services:
 """)
     
     # Initialize cache
-    cache = WorkspaceCache(tmp_path)
+    cache = WorkspaceCache(tmp_path, tmp_path)
     await cache.initialize()
     
     # Verify service was parsed
@@ -34,7 +34,7 @@ async def test_cache_invalidation(tmp_path: Path = Path(tempfile.gettempdir())):
     services_file.parent.mkdir(parents=True, exist_ok=True)
     services_file.write_text("services: {}")
     
-    cache = WorkspaceCache(tmp_path)
+    cache = WorkspaceCache(tmp_path, tmp_path)
     await cache.initialize()
     
     # Modify file

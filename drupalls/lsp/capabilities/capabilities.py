@@ -148,12 +148,14 @@ class CapabilityManager:
                 ServicesCompletionCapability,
                 ServicesDefinitionCapability,
                 ServicesHoverCapability,
+                ServicesYamlDefinitionCapability,
             )
 
             capabilities = {
                 "services_completion": ServicesCompletionCapability(server),
                 "services_hover": ServicesHoverCapability(server),
                 "services_definition": ServicesDefinitionCapability(server),
+                "services_yaml_definition": ServicesYamlDefinitionCapability(server),
                 # TODO: Implements other capabilities.
                 # "hooks_completion": HooksCompletionCapability(server)
                 # "config_completion": ConfigCompletionCapability(server)

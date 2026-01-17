@@ -186,7 +186,7 @@ class ServicesYamlDefinitionCapability(DefinitionCapability):
             "Drupal\\Core\\Logger\\LoggerChannelFactory"
         """
         # Pattern: class: optionally quoted PHP namespace
-        pattern = re.compile(r'class:\s*["\']?([A-Za-z0-9\\]+)["\']?')
+        pattern = re.compile(r'class:\s*["\']?([A-Za-z0-9\\_]+)["\']?')
         match = pattern.search(line)
         
         if match:
@@ -233,24 +233,35 @@ class ServicesYamlDefinitionCapability(DefinitionCapability):
             # → modules/.../mymodule/src/Controller/MyController.php
             module_name = parts[1].lower()  # Module names are lowercase
             
-            # Search for module in common locations
-            search_paths = [
-                workspace_root / 'modules' / module_name / 'src',
-                workspace_root / 'modules/custom' / module_name / 'src',
-                workspace_root / 'modules/contrib' / module_name / 'src',
-                workspace_root / 'core/modules' / module_name / 'src',
-            ]
-            
             # Remaining namespace parts after "Drupal\[module]\"
             relative_parts = parts[2:]  # Skip "Drupal" and module name
             
-            for search_path in search_paths:
-                if search_path.exists():
-                    class_file = search_path / '/'.join(relative_parts)
-                    class_file = class_file.parent / f"{class_file.name}.php"
-                    
-                    if class_file.exists():
-                        return class_file
+            # Build the relative path within the module's src/ directory
+            if relative_parts:
+                class_relative_path = Path('/'.join(relative_parts)).with_suffix('.php')
+            else:
+                return None
+            
+            # Search for module recursively in common base directories
+            # This handles nested directories like modules/custom/vendor/mymodule
+            search_base_dirs = [
+                workspace_root / 'modules',
+                workspace_root / 'core' / 'modules',
+            ]
+            
+            for base_dir in search_base_dirs:
+                if not base_dir.exists():
+                    continue
+                
+                # Use rglob to search recursively for module directories
+                # Look for any directory matching the module name that contains a src/ folder
+                for module_dir in base_dir.rglob(module_name):
+                    if module_dir.is_dir():
+                        src_dir = module_dir / 'src'
+                        if src_dir.exists() and src_dir.is_dir():
+                            class_file = src_dir / class_relative_path
+                            if class_file.exists():
+                                return class_file
         
         return None
     
@@ -334,13 +345,22 @@ Create test scenarios:
 
 ```python
 # tests/test_services_yaml_definition.py
+from unittest.mock import Mock
+
 import pytest
-from pathlib import Path
 from lsprotocol.types import DefinitionParams, Position, TextDocumentIdentifier
 
-async def test_yaml_to_class_navigation():
+from drupalls.lsp.capabilities.services_capabilities import (
+    ServicesYamlDefinitionCapability,
+)
+from drupalls.lsp.server import create_server
+from drupalls.workspace.cache import WorkspaceCache
+
+
+@pytest.mark.asyncio
+async def test_yaml_to_class_navigation(tmp_path, mocker):
     """Test navigating from YAML service definition to PHP class."""
-    
+
     # Given: A .services.yml file with a service class
     yaml_uri = "file:///path/to/mymodule.services.yml"
     yaml_content = """
@@ -349,20 +369,42 @@ services:
     class: Drupal\\Core\\Logger\\LoggerChannelFactory
     arguments: ['@container']
 """
-    
+
+    # Set up temporary Drupal file structure
+    php_file = tmp_path / "core" / "lib" / "Drupal" / "Core" / "Logger" / "LoggerChannelFactory.php"
+    php_file.parent.mkdir(parents=True, exist_ok=True)
+    php_file.write_text("<?php\nclass LoggerChannelFactory {}\n")
+
+    # Create server and initialize workspace cache
+    server = create_server()
+    server.workspace_cache = WorkspaceCache(tmp_path, tmp_path)
+    await server.workspace_cache.initialize()
+
+    # Mock the workspace
+    mock_workspace = Mock()
+    server.protocol._workspace = mock_workspace
+
+    # Mock the document retrieval
+    mock_doc = Mock()
+    mock_doc.lines = yaml_content.strip().split('\n')
+    mock_workspace.get_text_document.return_value = mock_doc
+
+    # Create capability
+    capability = ServicesYamlDefinitionCapability(server)
+
     # When: User invokes "Go to Definition" on the class line
     params = DefinitionParams(
         text_document=TextDocumentIdentifier(uri=yaml_uri),
-        position=Position(line=3, character=15)  # On "Drupal\Core\..."
+        position=Position(line=2, character=15)  # On "Drupal\Core\..."
     )
-    
-    capability = ServicesYamlDefinitionCapability(server)
     result = await capability.definition(params)
-    
+
     # Then: Should navigate to the PHP class file
     assert result is not None
-    assert "LoggerChannelFactory.php" in result.uri
-    assert result.range.start.line >= 0  # Found class declaration
+    assert not isinstance(result, list)  # Should be a single Location
+    assert php_file.as_uri() == result.uri
+    assert result.range.start.line == 1  # Class declaration on line 1 (0-indexed)
+
 ```
 
 ## PSR-4 Autoloading Reference
@@ -397,12 +439,33 @@ Drupal\mymodule\Plugin\Block\MyBlock
 
 ### Search Order for Modules
 
-When resolving module classes, search in this order:
+When resolving module classes, the system performs a **recursive search** in these base directories:
 
-1. `modules/[module]/src/` - Direct module path
-2. `modules/custom/[module]/src/` - Custom modules
-3. `modules/contrib/[module]/src/` - Contributed modules
-4. `core/modules/[module]/src/` - Core modules
+1. `workspace_root/modules/` - Searches recursively for module directories
+   - Handles: `modules/mymodule/`, `modules/custom/mymodule/`, `modules/custom/vendor/mymodule/`
+   - Handles: `modules/contrib/mymodule/`, `modules/contrib/vendor/mymodule/`
+   - Any nested structure under `modules/`
+
+2. `workspace_root/core/modules/` - Searches recursively for core module directories
+   - Handles: `core/modules/node/`, `core/modules/user/`, etc.
+
+**Search Algorithm:**
+- Uses `rglob(module_name)` to find directories matching the module name
+- Checks if found directory contains a `src/` subdirectory
+- Verifies the class file exists at the expected PSR-4 path
+- Returns the first matching file found
+
+**Examples of Supported Structures:**
+```
+modules/mymodule/src/Controller/MyController.php
+modules/custom/mymodule/src/Controller/MyController.php
+modules/custom/vendor/mymodule/src/Controller/MyController.php
+modules/contrib/mymodule/src/Controller/MyController.php
+modules/contrib/vendor/mymodule/src/Plugin/Block/MyBlock.php
+core/modules/node/src/Controller/NodeController.php
+```
+
+**Performance Note:** The recursive search may take longer in large projects. Consider implementing a class location cache (see Performance Considerations section) to avoid repeated file system traversals.
 
 ## Edge Cases to Handle
 
@@ -450,22 +513,48 @@ User might click anywhere on the line:
 ```
 **Handling**: `can_handle()` checks if line contains `class:`, extraction works regardless of cursor position
 
+### 6. Deeply Nested Module Structures
+
+Some projects may have very deep nesting:
+```
+modules/custom/vendor/category/subcategory/mymodule/src/Controller/MyController.php
+```
+**Handling**: The recursive `rglob()` search finds modules at any depth, but this can impact performance. Consider implementing a cache (see Performance Considerations) to avoid repeated deep searches.
+
+### 7. Multiple Modules with Same Name
+
+Rare case where modules have the same name in different locations:
+```
+modules/custom/mymodule/src/MyClass.php
+modules/contrib/mymodule/src/MyClass.php
+```
+**Handling**: Returns the first match found. The order depends on the search order (modules/ before core/modules/), and `rglob()` order within each base directory. Document this behavior or add configuration for search priority.
+
 ## Performance Considerations
 
 ### File System Lookups
 
-Resolving class paths requires file system operations:
+Resolving class paths requires file system operations, and the recursive search can be expensive:
 
 ```python
-# Check if file exists
-if class_file.exists():
-    return class_file
+# Recursive search through module directories
+for module_dir in base_dir.rglob(module_name):
+    if module_dir.is_dir():
+        # Check for src/ directory and class file
 ```
 
-**Optimization Ideas:**
-1. **Cache Class Locations**: Build a cache of FQCN → file path mappings during workspace initialization
-2. **Lazy Loading**: Only search when definition is requested
-3. **Parallel Search**: Search multiple module paths concurrently
+**Performance Impact:**
+- **Recursive search** (`rglob`) traverses all subdirectories under `modules/`
+- In large projects with hundreds of modules, this can take 10-100ms per request
+- Multiple nested levels increase search time
+- Network file systems (NFS, WSL) amplify the performance impact
+
+**Optimization Strategies:**
+1. **Cache Class Locations**: Build a cache of FQCN → file path mappings during workspace initialization (recommended)
+2. **Lazy Loading**: Only search when definition is requested (current approach)
+3. **Parallel Search**: Search multiple base directories concurrently using asyncio
+4. **Smart Path Prediction**: Try common paths first before recursive search
+5. **Limit Search Depth**: Stop at reasonable depth (e.g., 3-4 levels)
 
 ### Example: Cached Class Resolution
 
@@ -579,13 +668,17 @@ services:
 ## Testing Checklist
 
 - [ ] Navigate from core service to core class
-- [ ] Navigate from custom module service to custom module class
-- [ ] Navigate from contrib module service to contrib module class
+- [ ] Navigate from custom module service to custom module class (direct path: `modules/mymodule/`)
+- [ ] Navigate from custom module service to custom module class (nested: `modules/custom/mymodule/`)
+- [ ] Navigate from custom module service to custom module class (deep nested: `modules/custom/vendor/mymodule/`)
+- [ ] Navigate from contrib module service to contrib module class (nested: `modules/contrib/mymodule/`)
+- [ ] Navigate from contrib module service to contrib module class (deep nested: `modules/contrib/vendor/mymodule/`)
 - [ ] Handle cursor at different positions on line
 - [ ] Handle non-existent class gracefully
 - [ ] Handle invalid YAML gracefully
 - [ ] Handle service aliases (should not activate)
-- [ ] Performance with large codebases (1000+ services)
+- [ ] Performance with large codebases (1000+ services, nested modules)
+- [ ] Performance with deeply nested module structures (4-5 levels)
 - [ ] Works alongside existing PHP → YAML navigation
 
 ## References
