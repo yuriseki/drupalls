@@ -30,6 +30,7 @@ from drupalls.lsp.capabilities.capabilities import (
     HoverCapability,
 )
 
+from drupalls.utils.resolve_class_file import resolve_class_file
 from drupalls.workspace.services_cache import ServiceDefinition, ServicesCache
 
 
@@ -238,16 +239,16 @@ class ServicesDefinitionCapability(DefinitionCapability):
 class ServicesYamlDefinitionCapability(DefinitionCapability):
     r"""
     Provides go-to-definition from .services.yml files to PHP class definitions.
-    
+
     Navigates from:
         services:
           logger.factory:
             class: Drupal\Core\Logger\LoggerChannelFactory
-    
+
     To:
         core/lib/Drupal/Core/Logger/LoggerChannelFactory.php
     """
-    
+
     @property
     def name(self) -> str:
         return "services_yaml_to_class_definition"
@@ -318,8 +319,29 @@ class ServicesYamlDefinitionCapability(DefinitionCapability):
         if not class_name:
             return None
 
+        services_cache = self.workspace_cache.caches.get("services")
+        if services_cache:
+            # Look up the service definition
+            service_def = services_cache.get(class_name)
+            if service_def and service_def.class_file_path:
+                class_file = Path(service_def.class_file_path)
+                if class_file.exists():
+                    class_line = self._find_class_definition_line(
+                        class_file, 
+                        service_def.class_name,
+                    )
+
+                    return Location(
+                        uri=class_file.as_uri(),
+                        range=Range(
+                            start=Position(line=class_line, character=0),
+                            end=Position(line=class_line, character=0),
+                        ),
+                    )
+
+        # Fallback: Dynamic resolution if cache lookup fails.
         # Resolve FQCN to file_path
-        class_file = self._resolve_class_file(class_name)
+        class_file = resolve_class_file(class_name, self.workspace_cache)
         if not class_file or not class_file.exists():
             return None
 
@@ -353,78 +375,6 @@ class ServicesYamlDefinitionCapability(DefinitionCapability):
 
         if match:
             return match.group(1).strip()
-
-        return None
-
-    def _resolve_class_file(self, fqcn: str) -> Path | None:
-        r"""
-        Convert fully qualified class name to file path.
-
-        Uses Drupal's PSR-4 autoloading conventions:
-        - Drupal\\Core\\...       → core/lib/Drupal/Core/...
-        - Drupal\\[module]\\...   → modules/.../src/...
-
-        Args:
-            fqcn: Fully qualified class name (e.g., "Drupal\\Core\\Logger\\LoggerChannelFactory")
-
-        Returns:
-            Path to PHP file, or None if cannot resolve
-        """
-        if not self.workspace_cache:
-            return None
-
-        workspace_root = self.workspace_cache.workspace_root
-
-        # Split namespace into parts
-        parts = fqcn.split("\\")
-
-        if len(parts) < 2:
-            return None
-
-        # Handle Drupal\Core* classes
-        if parts[0] == "Drupal" and parts[1] == "Core":
-            # Drupal\Core\Logger\LoggerChannelFactory
-            # -> core/lib/Drupal/Core/Logger/LoggerChannelFactory.php
-            relative_path = Path("core/lib") / "/".join(parts)
-            class_file = workspace_root / f"{relative_path}.php"
-            return class_file
-
-        # Handle Drupal\[module]\* classes
-        if parts[0] == "Drupal" and len(parts) >= 2:
-            # Drupal\mymodule\Controller\MyController
-            # -> modules/.../mymodule/src/Controller/MyController.php
-            module_name = parts[1].lower()  # Module names are lowercase
-
-            # Remaining namespace parts after "Drupal\[module]\"
-            relative_parts = parts[2:]  # Skip "Drupal" and module name
-
-            # Build the relative path within the module's src/ directory
-            if relative_parts:
-                class_relative_path = Path("/".join(relative_parts)).with_suffix(".php")
-            else:
-                return None
-
-            # Search for module recursively in common base directories
-            # This handles nested directories like modules/custom/vendor/mymodule
-            search_base_dirs = [
-                workspace_root / "modules",
-                workspace_root / "core" / "modules",
-                workspace_root / "profiles",
-            ]
-
-            for base_dir in search_base_dirs:
-                if not base_dir.exists():
-                    continue
-
-                # Use rglob to search recursively for module directories
-                # Look for any directory matching the module name that contains a src/ folder
-                for module_dir in base_dir.rglob(module_name):
-                    if module_dir.is_dir():
-                        src_dir = module_dir / "src"
-                        if src_dir.exists() and src_dir.is_dir():
-                            class_file = src_dir / class_relative_path
-                            if class_file.exists():
-                                return class_file
 
         return None
 

@@ -4,6 +4,7 @@ from datetime import datetime
 import yaml
 import json
 
+from drupalls.utils.resolve_class_file import resolve_class_file
 from drupalls.workspace.cache import (
     CachedDataBase,
     CachedWorkspace,
@@ -18,6 +19,7 @@ class ServiceDefinition(CachedDataBase):
     """Represents a parsed Drupal service definition."""
 
     class_name: str
+    class_file_path: str
     arguments: list[str] = field(default_factory=list)
     tags: list[dict] = field(default_factory=list)
 
@@ -119,6 +121,7 @@ class ServicesCache(CachedWorkspace):
 
                 # Extract service information
                 class_name = service_def.get("class", "")
+                class_file_path = resolve_class_file(class_name, self.workspace_cache)
                 arguments = service_def.get("arguments", [])
                 tags = service_def.get("tags", [])
 
@@ -128,6 +131,7 @@ class ServicesCache(CachedWorkspace):
                         id=id,
                         description=class_name,
                         class_name=class_name,
+                        class_file_path=str(class_file_path) or "",
                         arguments=arguments,
                         tags=tags,
                         file_path=file_path,
