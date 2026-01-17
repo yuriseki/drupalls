@@ -683,7 +683,7 @@ services:
 
 ## References
 
-- **Plugin Architecture**: `docs/CAPABILITY_PLUGIN_ARCHITECTURE.md`
+- **Plugin Architecture**: `03-CAPABILITY_PLUGIN_ARCHITECTURE.md`
 - **LSP Definition Specification**: [LSP textDocument/definition](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_definition)
 - **Drupal PSR-4**: [Drupal PSR-4 Documentation](https://www.drupal.org/docs/develop/coding-standards/psr-4-namespaces-and-autoloading-in-drupal-8)
 - **Existing Implementation**: `drupalls/lsp/capabilities/services_capabilities.py`

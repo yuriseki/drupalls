@@ -200,4 +200,4 @@ After updating line 52:
 - `drupalls/workspace/cache.py` - Cache architecture
 - `drupalls/workspace/services_cache.py` - ServicesCache implementation
 - `drupalls/lsp/server.py` - Server initialization
-- `CACHE_USAGE.md` - General cache usage guide
+- `07-CACHE_USAGE.md` - General cache usage guide

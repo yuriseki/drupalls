@@ -321,4 +321,4 @@ For 99% of Drupal projects, in-memory is the right choice.
 3. **Test:** Verify performance with your Drupal codebase
 4. **Extend:** Add scanners for other Drupal constructs (hooks, config, entities)
 
-See `DEVELOPMENT_GUIDE.md` for full examples!
+See `05-DEVELOPMENT_GUIDE.md` for full examples!

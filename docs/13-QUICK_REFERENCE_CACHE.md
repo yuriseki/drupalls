@@ -76,8 +76,8 @@ For 20 completions: **20ms vs 400ms** - huge difference in UX!
 ## Files
 
 - `drupalls/workspace/cache.py` - Implementation
-- `CACHE_USAGE.md` - Full guide
-- `STORAGE_STRATEGY.md` - Architecture details
+- `07-CACHE_USAGE.md` - Full guide
+- `04-STORAGE_STRATEGY.md` - Architecture details
 
 ## API
 
@@ -92,4 +92,4 @@ For 20 completions: **20ms vs 400ms** - huge difference in UX!
 - `class_name` - e.g., "Drupal\\Core\\Entity\\EntityTypeManager"
 - `short_description` - Friendly name
 
-That's it! See CACHE_USAGE.md for complete documentation.
+That's it! See 07-CACHE_USAGE.md for complete documentation.

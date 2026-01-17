@@ -143,7 +143,7 @@ DrupalLS Architecture
 
 ### File Naming Convention
 
-- `UPPERCASE_WITH_UNDERSCORES.md` - Architecture/concept docs (e.g., `CAPABILITY_PLUGIN_ARCHITECTURE.md`)
+- `NN-UPPERCASE_WITH_UNDERSCORES.md` - Architecture/concept docs (e.g., `03-CAPABILITY_PLUGIN_ARCHITECTURE.md`)
 - Place in `docs/` folder
 - Use descriptive names that indicate content
 
@@ -210,21 +210,21 @@ CapabilityManager
 ## Existing Documentation (Read These First!)
 
 ### Architecture Documentation
-- `docs/CAPABILITY_PLUGIN_ARCHITECTURE.md` - How capability plugins work
-- `docs/WORKSPACE_CACHE_ARCHITECTURE.md` - How caching system works
-- `STORAGE_STRATEGY.md` - Why in-memory vs SQLite
+- `docs/02-WORKSPACE_CACHE_ARCHITECTURE.md` - How caching system works
+- `docs/03-CAPABILITY_PLUGIN_ARCHITECTURE.md` - How capability plugins work
+- `docs/04-STORAGE_STRATEGY.md` - Why in-memory vs SQLite
 
 ### Implementation Guides
-- `docs/COMPLETION_WITH_CACHE.md` - Building completion features
-- `docs/SERVICE_CLASS_DEFINITION_GUIDE.md` - Go-to-definition implementation
-- `docs/DRUPAL_ROOT_DETECTION.md` - Finding Drupal project root
-- `docs/FILE_PATH_BEST_PRACTICES.md` - Working with file paths
+- `docs/10-COMPLETION_WITH_CACHE.md` - Building completion features
+- `docs/11-SERVICE_CLASS_DEFINITION_GUIDE.md` - Go-to-definition implementation
+- `docs/08-DRUPAL_ROOT_DETECTION.md` - Finding Drupal project root
+- `docs/09-FILE_PATH_BEST_PRACTICES.md` - Working with file paths
 
 ### Reference Documentation
-- `DEVELOPMENT_GUIDE.md` - Complete LSP feature reference (1400+ lines)
-- `LSP_FEATURES_REFERENCE.md` - Quick lookup table of all LSP features
-- `CACHE_USAGE.md` - How to use WorkspaceCache API
-- `QUICK_REFERENCE_CACHE.md` - Cache quick reference
+- `docs/05-DEVELOPMENT_GUIDE.md` - Complete LSP feature reference (1400+ lines)
+- `docs/06-LSP_FEATURES_REFERENCE.md` - Quick lookup table of all LSP features
+- `docs/07-CACHE_USAGE.md` - How to use WorkspaceCache API
+- `docs/13-QUICK_REFERENCE_CACHE.md` - Cache quick reference
 
 ### Project Overview
 - `README.md` - Project introduction, setup instructions
@@ -345,7 +345,7 @@ When documenting a feature, answer these questions:
 - Capability plugin architecture
 
 ### In Progress 🔄
-- Service definition (YAML → PHP class) - documented in `docs/SERVICE_CLASS_DEFINITION_GUIDE.md`
+- Service definition (YAML → PHP class) - documented in `docs/11-SERVICE_CLASS_DEFINITION_GUIDE.md`
 - Hook completion and hover
 - Config schema support
 - Performance optimization

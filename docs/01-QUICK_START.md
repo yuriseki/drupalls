@@ -279,11 +279,11 @@ Look at the JSON-RPC messages. pygls logs them with DEBUG level.
 
 ## Resources
 
-- **Full guide:** See `DEVELOPMENT_GUIDE.md`
+- **Full guide:** See `05-DEVELOPMENT_GUIDE.md`
 - **pygls docs:** https://pygls.readthedocs.io/
 - **LSP spec:** https://microsoft.github.io/language-server-protocol/
 - **Drupal API:** https://api.drupal.org/
 
 ## Questions?
 
-Read the detailed `DEVELOPMENT_GUIDE.md` for in-depth explanations of each component!
+Read the detailed `05-DEVELOPMENT_GUIDE.md` for in-depth explanations of each component!
