@@ -19,23 +19,28 @@ DrupalLS brings intelligent IDE features to Drupal development through the Langu
 ### ✅ Implemented
 - **Service Autocompletion** - Autocomplete Drupal service names in `\Drupal::service()` and `->get()` calls
 - **Service Hover Information** - View service details, class names, and file locations on hover
-- **Workspace Cache** - Fast in-memory caching of services, hooks, and Drupal constructs
+- **Service Go-to-Definition** - Navigate from PHP code to service YAML definitions
+- **Plugin Capability Architecture** - Extensible system for adding new LSP features
+- **Workspace Cache System** - Fast in-memory caching with < 1ms lookups
 - **Smart File Detection** - Automatic Drupal root detection and workspace scanning
 - **Real-time Updates** - Cache invalidation on file changes for up-to-date information
+- **Text Synchronization** - Real-time file tracking and updates
 
 ### 🔄 In Progress
+- Service-to-Class Definition - Navigate from YAML service definitions to PHP class files (documented)
 - Hook autocompletion (`hook_form_alter`, `hook_node_view`, etc.)
-- Go-to-definition for services and hooks
 - Configuration schema validation
 - Entity type awareness
 
 ### 📋 Planned
+- Hook hover and go-to-definition
 - Plugin annotation support
 - Route autocompletion
 - Form API field completion
 - Twig template support
-- Diagnostics and linting
+- Diagnostics and validation
 - Code actions and quick fixes
+- Signature help for Drupal APIs
 
 ---
 
@@ -217,10 +222,19 @@ Once installed and configured, DrupalLS automatically provides:
                  Shows: Class, file location, arguments, tags
 ```
 
+### Go-to-Definition
+```php
+// Ctrl+Click on service name to jump to definition
+\Drupal::service('logger.factory');
+                 ↑
+                 Navigates to: core/core.services.yml:123
+```
+
 ### Smart Detection
 - Automatically detects Drupal root in your workspace
-- Scans `*.services.yml` files from core, modules, themes
+- Scans `*.services.yml` files from core, modules, themes, profiles
 - Updates cache when files change
+- Sub-millisecond cache access times
 
 ---
 
@@ -229,26 +243,38 @@ Once installed and configured, DrupalLS automatically provides:
 DrupalLS uses a plugin-based architecture for extensibility:
 
 ```
-DrupalLS
+DrupalLS Architecture
+│
+├── LSP Server (pygls v2)
+│   ├── Handles LSP protocol communication
+│   └── Registers capability handlers
+│
+├── Capability Manager
+│   ├── Plugin architecture for LSP features
+│   ├── Aggregates results from multiple handlers
+│   └── Registered Capabilities:
+│       ├── ServicesCompletionCapability
+│       ├── ServicesHoverCapability
+│       └── ServicesDefinitionCapability
+│
 ├── Workspace Cache (in-memory)
-│   ├── ServicesCache - Parse *.services.yml
-│   ├── HooksCache - Parse hook definitions
-│   └── ConfigCache - Parse config schemas
+│   ├── WorkspaceCache - Central cache manager
+│   ├── ServicesCache - Parse *.services.yml files
+│   ├── HooksCache - Parse hook definitions (planned)
+│   └── ConfigCache - Parse config schemas (planned)
 │
-├── LSP Capabilities (plugin-based)
-│   ├── ServicesCompletionCapability
-│   ├── ServicesHoverCapability
-│   └── HooksCompletionCapability
-│
-└── LSP Server (pygls v2)
-    └── Standard LSP features
+└── File System Utilities
+    ├── Drupal root detection
+    └── PSR-4 path resolution
 ```
 
 **Key Design Principles:**
-- **In-memory caching** for sub-millisecond access times
+- **In-memory caching** for sub-millisecond access times (< 1ms)
 - **Plugin architecture** for adding features without modifying core
 - **Type-safe** with Python 3.12+ type hints
-- **Async-first** using pygls v2 async capabilities
+- **Async-first** using pygls v2 async/await patterns
+- **Incremental updates** for file changes
+- **Capability aggregation** for composable features
 
 See [Architecture Documentation](docs/CAPABILITY_PLUGIN_ARCHITECTURE.md) for details.
 
@@ -256,12 +282,26 @@ See [Architecture Documentation](docs/CAPABILITY_PLUGIN_ARCHITECTURE.md) for det
 
 ## 📚 Documentation
 
+### Getting Started
 - [Quick Start Guide](QUICK_START.md) - Get up and running quickly
 - [Development Guide](DEVELOPMENT_GUIDE.md) - Complete LSP feature reference (1400+ lines)
-- [Cache Usage](CACHE_USAGE.md) - How to use WorkspaceCache
+- [LSP Features Reference](LSP_FEATURES_REFERENCE.md) - Quick lookup table of all LSP features
+
+### Architecture & Design
+- [Capability Plugin Architecture](docs/CAPABILITY_PLUGIN_ARCHITECTURE.md) - Extensible LSP feature system
+- [Workspace Cache Architecture](docs/WORKSPACE_CACHE_ARCHITECTURE.md) - In-memory caching design
 - [Storage Strategy](STORAGE_STRATEGY.md) - Why in-memory vs SQLite
-- [LSP Features Reference](LSP_FEATURES_REFERENCE.md) - Quick lookup table
-- [Plugin Architecture](docs/CAPABILITY_PLUGIN_ARCHITECTURE.md) - Extend DrupalLS
+
+### Implementation Guides
+- [Cache Usage](CACHE_USAGE.md) - How to use WorkspaceCache API
+- [Cache Quick Reference](QUICK_REFERENCE_CACHE.md) - Quick cache API lookup
+- [Completion with Cache](docs/COMPLETION_WITH_CACHE.md) - Building completion features
+- [Service Class Definition Guide](docs/SERVICE_CLASS_DEFINITION_GUIDE.md) - YAML to PHP navigation
+- [Drupal Root Detection](docs/DRUPAL_ROOT_DETECTION.md) - Finding Drupal projects
+- [File Path Best Practices](docs/FILE_PATH_BEST_PRACTICES.md) - Working with paths
+
+### For Contributors
+- [AGENTS.md](AGENTS.md) - Project context for LLMs and documentation writers
 
 ---
 
@@ -285,15 +325,17 @@ poetry run python -m debugpy --listen 5678 --wait-for-client drupalls/main.py
 ```
 drupalls/
 ├── lsp/
-│   ├── server.py              # LSP server setup
-│   ├── capabilities/          # Plugin-based capabilities
-│   └── features/              # LSP feature implementations
+│   ├── server.py                      # LSP server setup and initialization
+│   └── capabilities/
+│       ├── capabilities.py            # Base classes and CapabilityManager
+│       └── services_capabilities.py   # Service completion/hover/definition
 ├── workspace/
-│   ├── cache.py               # Cache manager
-│   └── services_cache.py      # Service definitions cache
+│   ├── cache.py                       # Base classes (CachedWorkspace, WorkspaceCache)
+│   ├── services_cache.py              # ServicesCache implementation
+│   └── utils.py                       # File utilities (hash calculation, etc.)
 ├── utils/
-│   └── find_files.py          # Drupal detection utilities
-└── main.py                    # Entry point
+│   └── find_files.py                  # Drupal root detection
+└── main.py                            # Entry point
 ```
 
 ### Running Tests
@@ -311,12 +353,28 @@ poetry run pytest tests/test_workspace_cache.py
 
 ### Adding New Features
 
-1. Create a new cache type in `drupalls/workspace/`
-2. Create a new capability in `drupalls/lsp/capabilities/`
-3. Register in `CapabilityManager`
-4. Write tests in `tests/`
+DrupalLS uses a plugin architecture that makes adding new features straightforward:
 
-See [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) for detailed examples.
+1. **Create a cache** (if needed) in `drupalls/workspace/`:
+   - Extend `CachedWorkspace` base class
+   - Implement scanning and parsing logic
+   - Add to `WorkspaceCache.caches` dict
+
+2. **Create a capability** in `drupalls/lsp/capabilities/`:
+   - Extend `CompletionCapability`, `HoverCapability`, or `DefinitionCapability`
+   - Implement `can_handle()` to check context
+   - Implement feature method (`complete()`, `hover()`, `definition()`)
+
+3. **Register in CapabilityManager**:
+   - Add to `capabilities` dict in `CapabilityManager.__init__()`
+   - Capability is automatically discovered and used
+
+4. **Write tests** in `tests/`:
+   - Test cache parsing
+   - Test capability `can_handle()` logic
+   - Test feature implementation
+
+See [CAPABILITY_PLUGIN_ARCHITECTURE.md](docs/CAPABILITY_PLUGIN_ARCHITECTURE.md) for detailed examples.
 
 ---
 
@@ -378,24 +436,35 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 🗺️ Roadmap
 
 **v0.2.0** (Current)
-- ✅ Service completion and hover
-- 🔄 Hook completion
-- 🔄 Go-to-definition
+- ✅ Service completion, hover, and definition (PHP → YAML)
+- ✅ Plugin capability architecture
+- ✅ Workspace cache system
+- ✅ Text synchronization
+- 🔄 Service-to-class definition (YAML → PHP) - documented
+- 🔄 Hook completion and hover
 
 **v0.3.0**
-- Configuration schema validation
+- Hook go-to-definition
+- Configuration schema parsing
+- Config validation and completion
 - Entity type awareness
-- Plugin annotation support
 
 **v0.4.0**
+- Plugin annotation support
 - Route autocompletion
-- Form API support
-- Diagnostics and linting
+- Form API field completion
+- Diagnostics and validation
+
+**v0.5.0**
+- Code actions and quick fixes
+- Signature help for Drupal APIs
+- Document and workspace symbols
 
 **v1.0.0**
 - Full Drupal 10/11 support
 - Twig template support
-- Code actions and refactoring
+- Advanced refactoring capabilities
+- Performance optimizations
 
 ---
 

@@ -34,6 +34,7 @@ class CachedDataBase:
     id: str
     description: str
     file_path: Path | None
+    line_number: int
 
 
 class CachedWorkspace(ABC):

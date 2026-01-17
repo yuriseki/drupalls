@@ -422,50 +422,59 @@ class ServicesHoverCapability(HoverCapability):
         if not self.workspace_cache:
             return None
         
-        # Get word under cursor (simplified - use LSP word range in production)
+        # Get word under cursor using LSP's built-in word_at_position
+        # This properly handles word boundaries according to LSP spec
         doc = self.server.workspace.get_text_document(params.text_document.uri)
-        line = doc.lines[params.position.line]
         
-        # Extract service ID (simplified)
-        # In production, use proper token extraction
+        # Extract service ID using word_at_position
+        # Customize regex patterns if needed (e.g., for service.name.with.dots)
+        word = doc.word_at_position(params.position)
+        
+        # Alternative: For Drupal service IDs with dots, use custom pattern
+        # import re
+        # SERVICE_WORD_PATTERN = re.compile(r'[a-z_][a-z0-9_.]*')
+        # word = doc.word_at_position(
+        #     params.position,
+        #     re_start_word=re.compile(r'[a-z_][a-z0-9_.]*$'),
+        #     re_end_word=re.compile(r'^[a-z_][a-z0-9_.]*')
+        # )
         services_cache = self.workspace_cache.caches.get("services")
         if not services_cache:
             return None
         
-        # For demo: try to find any service mentioned in the line
-        all_services = services_cache.get_all()
-        for service_id, service_def in all_services.items():
-            if service_id in line:
-                # Found a service!
-                relative_path = "unknown"
-                if service_def.file_path:
-                    try:
-                        relative_path = str(
-                            service_def.file_path.relative_to(
-                                self.workspace_cache.workspace_root
-                            )
+        # Look up the service by the extracted word
+        service_def = services_cache.get(word)
+        if service_def:
+            # Found the service!
+            relative_path = "unknown"
+            if service_def.file_path:
+                try:
+                    relative_path = str(
+                        service_def.file_path.relative_to(
+                            self.workspace_cache.workspace_root
                         )
-                    except ValueError:
-                        relative_path = str(service_def.file_path)
-                
-                content = (
-                    f"**Drupal Service:** `{service_id}`\\n\\n"
-                    f"**Class:** {service_def.class_name}\\n\\n"
-                    f"**Defined in:** {relative_path}\\n\\n"
-                )
-                
-                if service_def.arguments:
-                    content += f"**Arguments:** {len(service_def.arguments)}\\n\\n"
-                
-                if service_def.tags:
-                    content += f"**Tags:** {len(service_def.tags)}\\n\\n"
-                
-                return Hover(
-                    contents=MarkupContent(
-                        kind=MarkupKind.Markdown,
-                        value=content
                     )
+                except ValueError:
+                    relative_path = str(service_def.file_path)
+            
+            content = (
+                f"**Drupal Service:** `{word}`\\n\\n"
+                f"**Class:** {service_def.class_name}\\n\\n"
+                f"**Defined in:** {relative_path}\\n\\n"
+            )
+            
+            if service_def.arguments:
+                content += f"**Arguments:** {len(service_def.arguments)}\\n\\n"
+            
+            if service_def.tags:
+                content += f"**Tags:** {len(service_def.tags)}\\n\\n"
+            
+            return Hover(
+                contents=MarkupContent(
+                    kind=MarkupKind.Markdown,
+                    value=content
                 )
+            )
         
         return None
 
@@ -500,28 +509,36 @@ class ServicesDefinitionCapability(DefinitionCapability):
         if not self.workspace_cache:
             return None
         
-        # Get service ID under cursor (simplified)
+        # Get service ID under cursor using word_at_position
         doc = self.server.workspace.get_text_document(params.text_document.uri)
-        line = doc.lines[params.position.line]
+        
+        # Extract service ID with custom pattern for dots
+        import re
+        word = doc.word_at_position(
+            params.position,
+            re_start_word=re.compile(r'[a-z_][a-z0-9_.]*$'),
+            re_end_word=re.compile(r'^[a-z_][a-z0-9_.]*')
+        )
         
         services_cache = self.workspace_cache.caches.get("services")
         if not services_cache:
             return None
         
-        # Find service in line (simplified)
-        all_services = services_cache.get_all()
-        for service_id, service_def in all_services.items():
-            if service_id in line and service_def.file_path:
-                # Return location of the service definition
-                # Note: You'd need to parse the YAML to get exact line number
-                # For now, return start of file
-                return Location(
-                    uri=service_def.file_path.as_uri(),
-                    range=Range(
-                        start=Position(line=0, character=0),
-                        end=Position(line=0, character=0),
-                    )
+        # Look up the service definition
+        service_def = services_cache.get(word)
+        if service_def and service_def.file_path:
+            # Get the exact line number from the service definition
+            # ServiceDefinition stores the line number where it was defined
+            line_number = service_def.line_number if hasattr(service_def, 'line_number') else 0
+            
+            # Return location pointing to the service definition in .services.yml
+            return Location(
+                uri=service_def.file_path.as_uri(),
+                range=Range(
+                    start=Position(line=line_number, character=0),
+                    end=Position(line=line_number, character=0),
                 )
+            )
         
         return None
 ```

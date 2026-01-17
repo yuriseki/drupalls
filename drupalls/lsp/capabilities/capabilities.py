@@ -14,20 +14,16 @@ Design Principles:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from os import wait
-from sys import abiflags
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from lsprotocol.types import (
-    CompletionParams,
     CompletionList,
-    HoverParams,
-    Hover,
+    CompletionParams,
     DefinitionParams,
+    Hover,
+    HoverParams,
     Location,
 )
-
-from drupalls.lsp import capabilities
 
 if TYPE_CHECKING:
     from drupalls.lsp.drupal_language_server import DrupalLanguageServer
@@ -45,7 +41,6 @@ class Capability(ABC):
         self.server = server
         self.workspace_cache = server.workspace_cache
 
-    @abstractmethod
     def register(self) -> None:
         """
         Register LSP feature handlers with the server.
@@ -151,12 +146,14 @@ class CapabilityManager:
         if capabilities is None:
             from drupalls.lsp.capabilities.services_capabilities import (
                 ServicesCompletionCapability,
-                # ServicesHoverCapability,
+                ServicesDefinitionCapability,
+                ServicesHoverCapability,
             )
 
             capabilities = {
                 "services_completion": ServicesCompletionCapability(server),
-                # "services_hover": ServicesHoverCapability(server),
+                "services_hover": ServicesHoverCapability(server),
+                "services_definition": ServicesDefinitionCapability(server),
                 # TODO: Implements other capabilities.
                 # "hooks_completion": HooksCompletionCapability(server)
                 # "config_completion": ConfigCompletionCapability(server)

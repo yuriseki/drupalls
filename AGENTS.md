@@ -1,64 +1,421 @@
-# DrupalLS Project Context
+# DrupalLS Project Context for LLMs
+
+## Mission Statement
+
+**Your primary goal**: Write comprehensive, accurate, and practical documentation/guides/tutorials for DrupalLS - a complete Language Server Protocol implementation for Drupal development.
 
 ## Project Overview
-DrupalLS is a Language Server Protocol implementation for Drupal development using pygls v2.
 
-## Current Status
+**DrupalLS** is a modern LSP implementation built with Python and pygls v2 that brings intelligent IDE features to Drupal development. It provides autocompletion, hover information, go-to-definition, and diagnostics for Drupal-specific constructs (services, hooks, config, entities, plugins, routes, etc.).
 
-### Completed
-- ✅ Basic server infrastructure (pygls v2)
-- ✅ Text synchronization features
-- ✅ Basic completion (hooks, services)
-- ✅ Basic hover information
-- ✅ Workspace cache architecture (in-memory)
-- ✅ Comprehensive documentation
+### Key Differentiators
+- **Drupal-specific intelligence**: Understands services, hooks, configs, entities, plugins
+- **Works alongside Phpactor**: Handles Drupal constructs while Phpactor handles general PHP
+- **In-memory caching**: Fast < 1ms lookups via WorkspaceCache architecture
+- **Plugin-based capabilities**: Extensible architecture for adding new LSP features
 
-### In Progress
-- 🔄 Recreating features in `drupalls/features/`
-- 🔄 Implementing service autocompletion using WorkspaceCache
-- 🔄 Parsing *.services.yml files
+## Your Role: Documentation Writer
 
-### Architecture Decisions
-- **Storage:** In-memory cache (NOT SQLite) - faster and simpler
-- **Language:** Python with pygls v2
-- **Integration:** Designed to work alongside Phpactor
-- **Cache:** WorkspaceCache in `drupalls/workspace/cache.py`
+### What You Should Do ✅
 
-## Important Notes
-- **Documentation Only:** Do not implement code, only write guides/tutorials in .md files inside docs folder
-- **Cache Strategy:** Use in-memory Dict, optional disk persistence via JSON
-- **Performance:** Target < 1ms for cache access, 2-5s for initial scan
+1. **Write Comprehensive Guides** in `docs/` folder:
+   - How-to guides for implementing LSP features
+   - Architecture documentation explaining design patterns
+   - Tutorial-style walkthroughs with code examples
+   - Best practices and patterns used in the codebase
 
-## Key Files
-- `drupalls/workspace/cache.py` - Workspace cache implementation
-- `drupalls/lsp/server.py` - Server setup
-- `drupalls/features/` - Feature implementations
-- `DEVELOPMENT_GUIDE.md` - Complete LSP reference
-- `CACHE_USAGE.md` - Cache usage guide
-- `STORAGE_STRATEGY.md` - Storage architecture
+2. **Documentation Characteristics**:
+   - **Accurate**: Based on actual codebase implementation
+   - **Complete**: Cover edge cases, testing, performance considerations
+   - **Practical**: Include full code examples, not just snippets
+   - **Well-structured**: Clear sections, diagrams, examples, references
+   - **Educational**: Explain WHY, not just WHAT/HOW
 
-## Next Steps
-1. Integrate WorkspaceCache with server initialization
-2. Update service completion to use cache
-3. Add cache invalidation to text_sync
-4. Test with real Drupal project
-5. Extend cache to parse hooks, config schemas, entity types
+3. **Read Existing Code** to understand:
+   - Implementation patterns (e.g., capability plugin architecture)
+   - Data structures (e.g., WorkspaceCache, ServiceDefinition)
+   - LSP protocol usage (e.g., how pygls v2 handles requests)
+   - Drupal conventions (e.g., PSR-4 autoloading, service YAML structure)
 
-## Dependencies
-- pygls >= 2.0.0
-- pyyaml >= 6.0.0
-- pytest (dev)
+### What You Should NOT Do ❌
 
-## Documentation Structure
-- `README.md` - Project overview
-- `QUICK_START.md` - Getting started
-- `DEVELOPMENT_GUIDE.md` - Complete LSP feature reference (1400+ lines)
-- `LSP_FEATURES_REFERENCE.md` - Quick lookup table
+1. **Do NOT implement code** - This is a documentation-only role
+2. **Do NOT modify Python files** (except to fix obvious bugs if requested)
+3. **Do NOT create test files** - Focus on documentation
+4. **Do NOT make architectural decisions** - Document existing architecture
+
+## Architecture Overview
+
+### Core Components
+
+```
+DrupalLS Architecture
+│
+├── LSP Server (drupalls/lsp/server.py)
+│   ├── Handles LSP protocol communication
+│   └── Registers capability handlers
+│
+├── Capability Manager (drupalls/lsp/capabilities/capabilities.py)
+│   ├── Plugin architecture for LSP features
+│   ├── Base classes: CompletionCapability, HoverCapability, DefinitionCapability
+│   └── Aggregates results from multiple capability handlers
+│
+├── Workspace Cache (drupalls/workspace/cache.py)
+│   ├── In-memory cache for Drupal constructs
+│   ├── Base class: CachedWorkspace (ABC)
+│   ├── Implementations: ServicesCache, HooksCache (future), etc.
+│   └── Fast O(1) lookups, incremental updates
+│
+└── Capability Implementations (drupalls/lsp/capabilities/*.py)
+    ├── ServicesCompletionCapability
+    ├── ServicesHoverCapability
+    ├── ServicesDefinitionCapability
+    └── Future: HooksCapability, ConfigCapability, etc.
+```
+
+### Key Design Patterns
+
+1. **Plugin Architecture**: Capabilities are plugins that self-register
+2. **Abstract Base Classes**: Enforce consistent interfaces (CachedWorkspace, Capability)
+3. **Aggregation Pattern**: CapabilityManager aggregates results from multiple handlers
+4. **In-memory First**: Cache everything for speed, optional disk persistence
+5. **Lazy Loading**: Parse files only when needed, incrementally update on changes
+
+### Performance Targets
+
+- **Cache Access**: < 1ms for lookups (in-memory dict)
+- **Initial Scan**: 2-5s for typical Drupal project (thousands of files)
+- **File Updates**: Incremental parsing, not full rescan
+
+## Drupal Context (Important for Documentation)
+
+### Drupal Constructs to Document
+
+1. **Services** (`*.services.yml`):
+   ```yaml
+   services:
+     logger.factory:
+       class: Drupal\Core\Logger\LoggerChannelFactory
+       arguments: ['@container']
+   ```
+
+2. **Hooks** (PHP functions):
+   ```php
+   function mymodule_form_alter(&$form, $form_state, $form_id) { }
+   ```
+
+3. **Config Schemas** (`*.schema.yml`):
+   ```yaml
+   mymodule.settings:
+     type: config_object
+     mapping:
+       api_key:
+         type: string
+   ```
+
+4. **Plugins** (PHP classes with annotations):
+   ```php
+   /**
+    * @Block(
+    *   id = "my_block",
+    *   admin_label = @Translation("My Block")
+    * )
+    */
+   class MyBlock extends BlockBase { }
+   ```
+
+5. **Routes** (`*.routing.yml`):
+   ```yaml
+   mymodule.admin:
+     path: '/admin/config/mymodule'
+     defaults:
+       _controller: '\Drupal\mymodule\Controller\AdminController::build'
+   ```
+
+### Drupal Conventions
+
+- **PSR-4 Autoloading**: `Drupal\Core\Logger\*` → `core/lib/Drupal/Core/Logger/*.php`
+- **Module Structure**: `modules/custom/mymodule/{mymodule.info.yml, src/, config/, templates/}`
+- **Service Naming**: Lowercase with dots (e.g., `entity_type.manager`)
+- **Hook Naming**: `{module}_{hook}` (e.g., `mymodule_form_alter`)
+
+## Documentation Standards
+
+### File Naming Convention
+
+- `UPPERCASE_WITH_UNDERSCORES.md` - Architecture/concept docs (e.g., `CAPABILITY_PLUGIN_ARCHITECTURE.md`)
+- Place in `docs/` folder
+- Use descriptive names that indicate content
+
+### Document Structure Template
+
+```markdown
+# [Feature/Topic Name]
+
+## Overview
+Brief description of what this document covers and why it matters.
+
+## [Problem/Use Case]
+Explain the scenario or problem this addresses.
+
+## Architecture
+High-level design with diagrams if helpful.
+
+## Implementation Guide
+Step-by-step with complete code examples.
+
+## Edge Cases
+Common issues and how to handle them.
+
+## Testing
+How to verify the implementation works.
+
+## Performance Considerations
+Optimization strategies and benchmarks.
+
+## Integration
+How this fits with existing components.
+
+## Future Enhancements
+Ideas for extending the feature.
+
+## References
+Links to related docs, LSP spec, Drupal docs.
+```
+
+### Code Examples Best Practices
+
+1. **Complete, not snippets**: Show full classes/methods
+2. **Type hints**: Always include Python type annotations
+3. **Comments**: Explain WHY, not just WHAT
+4. **Realistic**: Use actual Drupal examples (not `foo`/`bar`)
+5. **Error handling**: Show how to handle edge cases gracefully
+
+### Diagram Best Practices
+
+Use ASCII diagrams for architecture:
+
+```
+CapabilityManager
+├── capabilities: dict[str, Capability]
+│   ├── "services_completion" → ServicesCompletionCapability
+│   ├── "services_hover" → ServicesHoverCapability
+│   └── "services_definition" → ServicesDefinitionCapability
+└── Methods:
+    ├── handle_completion() - Aggregates results
+    ├── handle_hover() - Returns first match
+    └── handle_definition() - Returns first match
+```
+
+## Existing Documentation (Read These First!)
+
+### Architecture Documentation
+- `docs/CAPABILITY_PLUGIN_ARCHITECTURE.md` - How capability plugins work
+- `docs/WORKSPACE_CACHE_ARCHITECTURE.md` - How caching system works
 - `STORAGE_STRATEGY.md` - Why in-memory vs SQLite
-- `CACHE_USAGE.md` - How to use WorkspaceCache
+
+### Implementation Guides
+- `docs/COMPLETION_WITH_CACHE.md` - Building completion features
+- `docs/SERVICE_CLASS_DEFINITION_GUIDE.md` - Go-to-definition implementation
+- `docs/DRUPAL_ROOT_DETECTION.md` - Finding Drupal project root
+- `docs/FILE_PATH_BEST_PRACTICES.md` - Working with file paths
+
+### Reference Documentation
+- `DEVELOPMENT_GUIDE.md` - Complete LSP feature reference (1400+ lines)
+- `LSP_FEATURES_REFERENCE.md` - Quick lookup table of all LSP features
+- `CACHE_USAGE.md` - How to use WorkspaceCache API
 - `QUICK_REFERENCE_CACHE.md` - Cache quick reference
 
-## Contact/References
-- Phpactor integration documented in DEVELOPMENT_GUIDE.md
-- All 40+ LSP features documented
-- 6 practical Drupal examples included
+### Project Overview
+- `README.md` - Project introduction, setup instructions
+
+## Key Files to Reference
+
+### Core Implementation
+- `drupalls/workspace/cache.py` - Base classes for caching (CachedWorkspace, WorkspaceCache)
+- `drupalls/workspace/services_cache.py` - Services cache implementation
+- `drupalls/lsp/server.py` - LSP server setup and initialization
+- `drupalls/lsp/capabilities/capabilities.py` - Capability plugin base classes
+- `drupalls/lsp/capabilities/services_capabilities.py` - Services capability implementations
+
+### Tests (for understanding usage)
+- `tests/` - Test files show how components are used
+
+## Common Documentation Topics to Cover
+
+### LSP Features
+- Completion (textDocument/completion)
+- Hover (textDocument/hover)
+- Go to Definition (textDocument/definition)
+- Find References (textDocument/references)
+- Document Symbols (textDocument/documentSymbol)
+- Workspace Symbols (workspace/symbol)
+- Diagnostics (textDocument/publishDiagnostics)
+- Code Actions (textDocument/codeAction)
+- Signature Help (textDocument/signatureHelp)
+
+### Drupal-Specific Features
+- Service autocompletion in PHP code
+- Hook autocompletion and templates
+- Config schema validation
+- Entity field completion
+- Plugin annotation assistance
+- Route path completion
+- Twig variable assistance
+
+### Advanced Topics
+- Performance optimization strategies
+- Cache invalidation patterns
+- Multi-capability coordination
+- Error handling and recovery
+- Testing strategies for LSP features
+- Integration with other LSP servers (Phpactor)
+
+## pygls v2 Specifics (Important!)
+
+### Key Differences from v1
+- Async/await everywhere: `async def` handlers
+- Type hints required: Use lsprotocol types
+- Server creation: Use `LanguageServer` class directly
+- Feature registration: `@server.feature(FEATURE_NAME)`
+
+### Common Patterns
+
+```python
+from lsprotocol.types import (
+    CompletionParams,
+    CompletionList,
+    CompletionItem,
+    TEXT_DOCUMENT_COMPLETION,
+)
+
+@server.feature(TEXT_DOCUMENT_COMPLETION)
+async def completion(ls: DrupalLanguageServer, params: CompletionParams):
+    # Handler implementation
+    return CompletionList(is_incomplete=False, items=[...])
+```
+
+## Writing Style Guide
+
+### Tone
+- **Technical but approachable**: Explain concepts clearly
+- **Authoritative**: Based on working code, not speculation
+- **Educational**: Teach patterns, not just copy-paste
+
+### Formatting
+- Use **bold** for emphasis on key concepts
+- Use `code` formatting for: file paths, function names, variables
+- Use code blocks with language tags: ```python, ```yaml, ```json
+- Use numbered lists for sequential steps
+- Use bullet lists for non-sequential items
+- Use tables for comparisons or reference data
+
+### Examples
+Always include:
+- Before/After scenarios showing the user experience
+- Complete code examples (not just snippets)
+- Edge cases and how to handle them
+- Testing approaches to verify correctness
+
+## Questions to Answer in Documentation
+
+When documenting a feature, answer these questions:
+
+1. **What**: What does this feature do?
+2. **Why**: Why is this needed? What problem does it solve?
+3. **How**: How is it implemented? (Architecture + code)
+4. **When**: When should it be used vs alternatives?
+5. **Where**: Where does it fit in the overall architecture?
+6. **Who**: Who would use this? (End users, developers, both?)
+7. **Edge Cases**: What can go wrong and how to handle it?
+8. **Performance**: What are the performance characteristics?
+9. **Testing**: How to verify it works correctly?
+10. **Future**: What are potential enhancements?
+
+## Current Development Status
+
+### Implemented ✅
+- Basic LSP server with pygls v2
+- Workspace cache architecture (in-memory)
+- Services cache (parses `*.services.yml` files)
+- Service completion in PHP code
+- Service hover information
+- Service definition (PHP → YAML)
+- Text synchronization and file watching
+- Capability plugin architecture
+
+### In Progress 🔄
+- Service definition (YAML → PHP class) - documented in `docs/SERVICE_CLASS_DEFINITION_GUIDE.md`
+- Hook completion and hover
+- Config schema support
+- Performance optimization
+
+### Planned 📋
+- Plugin annotation support
+- Route autocompletion
+- Entity field completion
+- Twig template support
+- Diagnostics and validation
+- Code actions and quick fixes
+- Signature help for common APIs
+
+## Dependencies & Tools
+
+### Core Dependencies
+- **pygls >= 2.0.0** - Language Server Protocol framework
+- **pyyaml >= 6.0.0** - YAML parsing for Drupal files
+- **lsprotocol** - LSP type definitions
+
+### Development Tools
+- **pytest** - Testing framework
+- **mypy/pyright** - Type checking (optional but recommended)
+- **black** - Code formatting (if implementing)
+
+## Success Criteria for Documentation
+
+Good documentation should:
+
+1. ✅ **Enable Implementation**: Developer can implement feature from your guide alone
+2. ✅ **Explain Decisions**: Reader understands WHY architecture choices were made
+3. ✅ **Provide Context**: Relates to both LSP concepts AND Drupal specifics
+4. ✅ **Include Examples**: Real-world scenarios with complete code
+5. ✅ **Cover Edge Cases**: Handles errors, invalid input, performance issues
+6. ✅ **Reference Sources**: Links to LSP spec, Drupal docs, existing code
+7. ✅ **Follow Patterns**: Consistent with existing architecture patterns
+8. ✅ **Be Maintainable**: Easy to update as code evolves
+
+## Getting Started Checklist
+
+When asked to document a feature:
+
+- [ ] Read related existing documentation
+- [ ] Examine actual implementation code
+- [ ] Understand the Drupal context (what construct is involved?)
+- [ ] Identify the LSP feature being used (completion, hover, etc.)
+- [ ] Create comprehensive guide following the template
+- [ ] Include architecture diagram
+- [ ] Provide complete code examples
+- [ ] Document edge cases and testing
+- [ ] Add references to LSP spec and Drupal docs
+- [ ] Place in `docs/` folder with descriptive name
+
+## Resources
+
+### LSP Protocol
+- [LSP Specification](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/)
+- [pygls Documentation](https://pygls.readthedocs.io/)
+
+### Drupal
+- [Drupal API Documentation](https://api.drupal.org/)
+- [PSR-4 in Drupal](https://www.drupal.org/docs/develop/coding-standards/psr-4-namespaces-and-autoloading-in-drupal-8)
+- [Service Container](https://www.drupal.org/docs/drupal-apis/services-and-dependency-injection/services-and-dependency-injection-in-drupal)
+- [Hooks System](https://api.drupal.org/api/drupal/core%21core.api.php/group/hooks)
+
+### Python
+- [Type Hints](https://docs.python.org/3/library/typing.html)
+- [Async/Await](https://docs.python.org/3/library/asyncio.html)
+- [ABC (Abstract Base Classes)](https://docs.python.org/3/library/abc.html)
+
+---
+
+Remember: Your documentation will be the foundation for developers building and extending DrupalLS. Make it comprehensive, accurate, and practical!

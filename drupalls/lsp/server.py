@@ -1,11 +1,9 @@
 from pathlib import Path
 
-from lsprotocol.types import CompletionList, CompletionParams, LogMessageParams, MessageType
+from lsprotocol.types import CompletionList, CompletionParams, DefinitionParams, HoverParams, LogMessageParams, MessageType
 
 from drupalls.lsp.capabilities.capabilities import CapabilityManager
 from drupalls.lsp.drupal_language_server import DrupalLanguageServer
-from drupalls.lsp.features.completion import register_completion_handler
-from drupalls.lsp.features.hover import register_hover_handler
 from drupalls.lsp.features.text_sync import register_text_sync_handlers
 from drupalls.utils.find_files import find_drupal_root
 from drupalls.workspace.cache import WorkspaceCache
@@ -72,7 +70,19 @@ def create_server() -> DrupalLanguageServer:
             return await ls.capability_manager.handle_completion(params)
         return CompletionList(is_incomplete=False, items=[])
 
-    # register_completion_handler(server)
-    # register_hover_handler(server)
+    from lsprotocol.types import TEXT_DOCUMENT_HOVER
+    @server.feature(TEXT_DOCUMENT_HOVER)
+    async def hover(ls: DrupalLanguageServer, params: HoverParams):
+        if ls.capability_manager:
+            return await ls.capability_manager.handle_hover(params)
+        return None
+
+    from lsprotocol.types import TEXT_DOCUMENT_DEFINITION
+    @server.feature(TEXT_DOCUMENT_DEFINITION)
+    async def definition(ls: DrupalLanguageServer, params: DefinitionParams):
+        if ls.capability_manager:
+            return await ls.capability_manager.handle_definition(params)
+        return None
+
 
     return server

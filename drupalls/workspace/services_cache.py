@@ -72,6 +72,30 @@ class ServicesCache(CachedWorkspace):
             # Calculate file hash for cache invalidation
             file_hash = calculate_file_hash(file_path)
 
+            # First pass: Find line numbers for each service ID
+            service_line_numbers = {}
+            with open(file_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                in_services_section = False
+                
+                for line_num, line in enumerate(lines, start=1):
+                    # Check if we entered the services section
+                    if line.strip().startswith('services:'):
+                        in_services_section = True
+                        continue
+                    
+                    # Exit services section if we hit another root-level key
+                    if in_services_section and line.strip() and not line.startswith(' '):
+                        in_services_section = False
+                    
+                    # Service IDs are indented with 2 spaces and followed by ':'
+                    if in_services_section and line.startswith('  ') and ':' in line:
+                        # Make sure it's not a property (properties have 4+ spaces)
+                        if not line.startswith('    '):
+                            service_id = line.strip().split(':')[0].strip()
+                            if service_id:
+                                service_line_numbers[service_id] = line_num
+
             # Add constructors used in Drupal core services.
             def construct_ref(loader, node):
                 # This simple constructor just returns the value as a string/scalar
@@ -81,7 +105,7 @@ class ServicesCache(CachedWorkspace):
             for custom_tag in custom_tags:
                 yaml.SafeLoader.add_constructor(custom_tag, construct_ref)
 
-            # Read and parse YAML
+            # Second pass: Parse YAML
             with open(file_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
 
@@ -107,6 +131,7 @@ class ServicesCache(CachedWorkspace):
                         arguments=arguments,
                         tags=tags,
                         file_path=file_path,
+                        line_number=service_line_numbers.get(id, 0)
                     )
 
             # Track file info for invalidation
@@ -191,6 +216,7 @@ class ServicesCache(CachedWorkspace):
                         if service_dict.get("file_path")
                         else None
                     ),
+                    line_number=service_dict["line_number"]
                 )
 
             return True
@@ -220,6 +246,7 @@ class ServicesCache(CachedWorkspace):
                             if service_def.file_path
                             else None
                         ),
+                        "line_number": service_def.line_number,
                     }
                     for id, service_def in self._services.items()
                 },
