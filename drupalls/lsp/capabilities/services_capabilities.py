@@ -26,6 +26,7 @@ from lsprotocol.types import (
     ReferenceParams,
 )
 from pygls import workspace
+from pygls.workspace.text_document import TextDocument
 from drupalls.lsp.capabilities.capabilities import (
     CompletionCapability,
     DefinitionCapability,
@@ -34,7 +35,6 @@ from drupalls.lsp.capabilities.capabilities import (
 )
 
 from drupalls.utils.resolve_class_file import resolve_class_file
-from drupalls.workspace import services_cache
 from drupalls.workspace.services_cache import ServiceDefinition, ServicesCache
 
 
@@ -442,9 +442,36 @@ class ServicesReferencesCapability(ReferencesCapability):
             return False
 
         doc = self.server.workspace.get_text_document(params.text_document.uri)
+        
+        # Handle YAML files (.services.yml)
+        if doc.uri.endswith('.services.yml'):
+            return await self._can_handle_yaml_file(params, doc)
+
+        # Handle PHP files
         line = doc.lines[params.position.line]
 
         return bool(SERVICE_PATTERN.search(line))
+
+    async def _can_handle_yaml_file(self, params: ReferenceParams, doc: TextDocument) -> bool:
+        """Check if cursor in on an service ID in a YAML file."""
+        if not self.workspace_cache:
+            return False
+
+        word = doc.word_at_position(
+            params.position,
+            re_start_word=re.compile(r"[A-Za-z_][A-Za-z0-9_.]*$"),
+            re_end_word=re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*"),
+        )
+
+        if not word:
+            return False
+
+        # Check if this word is a valid service ID
+        services_cache = self.workspace_cache.caches.get("services")
+        if not services_cache:
+            return False
+
+        return services_cache.get(word) is not None
 
     async def find_references(self, params: ReferenceParams) -> list[Location]:
         """Find all references to the search under cursor."""

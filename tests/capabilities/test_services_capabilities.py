@@ -729,3 +729,86 @@ $manager = \Drupal::getContainer()->get('entity_type.manager');
     uris = {loc.uri for loc in locations}
     assert f"file://{php_file1}" in uris
     assert f"file://{php_file2}" in uris
+
+
+@pytest.mark.asyncio
+async def test_find_references_from_yaml(tmp_path):
+    """Test finding references when cursor is in .services.yml file."""
+
+    # Create a services.yml file
+    services_file = tmp_path / "core" / "core.services.yml"
+    services_file.parent.mkdir(parents=True, exist_ok=True)
+    services_file.write_text(
+        """services:
+  test.service:
+    class: Drupal\\Test\\TestService
+"""
+    )
+
+    # Create PHP file that uses the service
+    php_file = tmp_path / "test.php"
+    php_file.write_text(r"""
+<?php
+$service = \Drupal::service('test.service');
+""")
+
+    # Setup server and capability
+    server = create_server()
+    server.workspace_cache = WorkspaceCache(tmp_path, tmp_path)
+    await server.workspace_cache.initialize()
+    mock_workspace = Mock()
+    server.protocol._workspace = mock_workspace
+
+    # Mock YAML document
+    mock_doc = Mock()
+    mock_doc.uri = f"file://{services_file}"
+    mock_doc.lines = [
+        "services:",
+        "  test.service:",
+        "    class: Drupal\\Test\\TestService"
+    ]
+    mock_doc.word_at_position = Mock(return_value="test.service")
+    mock_workspace.get_text_document.return_value = mock_doc
+
+    capability = ServicesReferencesCapability(server)
+
+    # Position cursor on 'test.service' in YAML file
+    params = ReferenceParams(
+        text_document=TextDocumentIdentifier(uri=f"file://{services_file}"),
+        position=Position(line=1, character=2),  # On 'test.service'
+        context=ReferenceContext(include_declaration=False),
+    )
+
+    # Should find the reference in PHP file
+    locations = await capability.find_references(params)
+
+    assert len(locations) == 1
+    assert locations[0].uri == f"file://{php_file}"
+
+
+@pytest.mark.asyncio
+async def test_yaml_references_invalid_position(tmp_path):
+    """Test that invalid positions in YAML don't trigger references."""
+
+    services_file = tmp_path / "test.services.yml"
+    services_file.write_text(
+        """
+services:
+  test.service:
+    class: Drupal\\Test\\TestService
+"""
+    )
+
+    server = create_server()
+    capability = ServicesReferencesCapability(server)
+
+    # Position cursor on 'class:' (not a service ID)
+    params = ReferenceParams(
+        text_document=TextDocumentIdentifier(uri=f"file://{services_file}"),
+        position=Position(line=2, character=6),  # On 'class:'
+        context=ReferenceContext(include_declaration=False),
+    )
+
+    # Should return empty list
+    locations = await capability.find_references(params)
+    assert locations == []
