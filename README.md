@@ -381,6 +381,11 @@ See [Architecture Documentation](docs/03-CAPABILITY_PLUGIN_ARCHITECTURE.md) for 
 - [Service Class Definition Guide](docs/APPENDIX-07-SERVICE_CLASS_DEFINITION_GUIDE.md) - YAML to PHP navigation
 - [Custom Server Attributes](docs/APPENDIX-08-CUSTOM_SERVER_ATTRIBUTES.md) - Extending the server
 - [Cache Quick Reference](docs/APPENDIX-09-QUICK_REFERENCE_CACHE.md) - Quick cache API lookup
+- [Text Sync Hooks System](docs/APPENDIX-11-TEXT_SYNC_HOOKS.md) - React to document lifecycle events
+- [Text Sync Quick Reference](docs/APPENDIX-12-TEXT_SYNC_HOOKS_QUICK_REF.md) - Quick hooks API lookup
+- [Implementing TextSyncManager](docs/APPENDIX-13-IMPLEMENTING_TEXT_SYNC_MANAGER.md) - Build the text sync infrastructure
+- [Cache Self-Management Pattern](docs/APPENDIX-14-CACHE_SELF_MANAGEMENT_PATTERN.md) - How caches manage their own lifecycle
+- [**⚠️ Text Sync Important Update**](docs/APPENDIX-15-TEXT_SYNC_HOOKS_IMPORTANT_UPDATE.md) - **READ THIS** if working with text sync hooks
 
 ### For Contributors
 - [AGENTS.md](AGENTS.md) - Project context for LLMs and documentation writers

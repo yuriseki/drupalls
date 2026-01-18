@@ -341,7 +341,7 @@ class ServicesYamlDefinitionCapability(DefinitionCapability):
 
         # Fallback: Dynamic resolution if cache lookup fails.
         # Resolve FQCN to file_path
-        class_file = resolve_class_file(class_name, self.workspace_cache)
+        class_file = resolve_class_file(class_name, self.workspace_cache.workspace_root)
         if not class_file or not class_file.exists():
             return None
 

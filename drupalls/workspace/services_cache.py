@@ -121,7 +121,7 @@ class ServicesCache(CachedWorkspace):
 
                 # Extract service information
                 class_name = service_def.get("class", "")
-                class_file_path = resolve_class_file(class_name, self.workspace_cache)
+                class_file_path = resolve_class_file(class_name, self.workspace_cache.workspace_root)
                 arguments = service_def.get("arguments", [])
                 tags = service_def.get("tags", [])
 
@@ -212,6 +212,7 @@ class ServicesCache(CachedWorkspace):
                 self._services[id] = ServiceDefinition(
                     id=service_dict["id"],
                     class_name=service_dict["class_name"],
+                    class_file_path=service_dict["class_file_path"],
                     description=service_dict.get("description", ""),
                     arguments=service_dict.get("arguments", []),
                     tags=service_dict.get("tags", []),
@@ -243,6 +244,7 @@ class ServicesCache(CachedWorkspace):
                         "id": service_def.id,
                         "class_name": service_def.class_name,
                         "description": service_def.description,
+                        "class_file_path": service_def.class_file_path,
                         "arguments": service_def.arguments,
                         "tags": service_def.tags,
                         "file_path": (

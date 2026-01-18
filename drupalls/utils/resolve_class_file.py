@@ -1,9 +1,7 @@
 from pathlib import Path
 
-from drupalls.workspace.cache import WorkspaceCache
 
-
-def resolve_class_file(fqcn: str, workspace_cache: WorkspaceCache) -> Path | None:
+def resolve_class_file(fqcn: str, workspace_root: Path) -> Path | None:
     r"""
     Convert fully qualified class name to file path.
 
@@ -13,11 +11,11 @@ def resolve_class_file(fqcn: str, workspace_cache: WorkspaceCache) -> Path | Non
 
     Args:
         fqcn: Fully qualified class name (e.g., "Drupal\\Core\\Logger\\LoggerChannelFactory")
+        workspace_root: Path to Drupal workspace root directory
 
     Returns:
         Path to PHP file, or None if cannot resolve
     """
-    workspace_root = workspace_cache.workspace_root
 
     # Split namespace into parts
     parts = fqcn.split("\\")
