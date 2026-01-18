@@ -24,21 +24,20 @@ Extend `LanguageServer` to add your own attributes with proper type hints:
 ```python
 # drupalls/lsp/server.py
 from pygls.lsp.server import LanguageServer
-from typing import Optional
 from drupalls.workspace import WorkspaceCache
 
 
 class DrupalLanguageServer(LanguageServer):
     """
     Custom Language Server with Drupal-specific attributes.
-    
+
     Attributes:
         workspace_cache: Cache for parsed Drupal data (services, hooks, etc.)
     """
-    
+
     def __init__(self, name: str, version: str):
         super().__init__(name, version)
-        self.workspace_cache: Optional[WorkspaceCache] = None
+        self.workspace_cache: WorkspaceCache | None = None
 
 
 def create_server() -> DrupalLanguageServer:
@@ -92,18 +91,12 @@ server.workspace_cache = None  # type: ignore[attr-defined]
 ```python
 # drupalls/lsp/server.py
 from pygls.lsp.server import LanguageServer
-from typing import Optional
-from drupalls.workspace import WorkspaceCache
-from pathlib import Path
-from lsprotocol.types import InitializeParams
-
-
 class DrupalLanguageServer(LanguageServer):
     """Drupal-specific Language Server with custom attributes."""
-    
+
     def __init__(self, name: str, version: str):
         super().__init__(name, version)
-        self.workspace_cache: Optional[WorkspaceCache] = None
+        self.workspace_cache: WorkspaceCache | None = None
 
 
 def create_server() -> DrupalLanguageServer:
@@ -135,10 +128,10 @@ class DrupalLanguageServer(LanguageServer):
         super().__init__(name, version)
         
         # Caches
-        self.workspace_cache: Optional[WorkspaceCache] = None
-        
+        self.workspace_cache: WorkspaceCache | None = None
+
         # Configuration
-        self.drupal_version: Optional[str] = None
+        self.drupal_version: str | None = None
         self.enable_experimental: bool = False
 ```
 

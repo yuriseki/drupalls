@@ -23,6 +23,7 @@ ipykernel = "^7.1.0"
 
 [project.scripts]
 drupalls = "drupalls.main:main"
+drupalls-setup-phpactor = "drupalls.scripts.setup_phpactor:main"
 
 [[tool.poetry.packages]]
 include = "drupalls"

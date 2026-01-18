@@ -46,63 +46,86 @@ We'll integrate with Phpactor's type analysis to determine variable types.
 ```python
 # drupalls/lsp/phpactor_integration.py
 
-from typing import Optional
+from typing import Union, TYPE_CHECKING
 import re
+
+if TYPE_CHECKING:
+    from drupalls.lsp.phpactor_client import PhpactorLspClient
+    from drupalls.lsp.phpactor_rpc import PhpactorRpcClient
 
 class TypeChecker:
     """Handles type checking for variables in ->get() calls."""
-    
-    def __init__(self, phpactor_client=None):
+
+    def __init__(self, phpactor_client: Union['PhpactorLspClient', 'PhpactorRpcClient'] | None = None):
         self.phpactor_client = phpactor_client
-        
+        self._type_cache = {}  # Simple cache for performance
+
     async def is_container_variable(self, doc, line: str, position: Position) -> bool:
         """Check if the variable in ->get() call is a ContainerInterface."""
-        
+
         # Extract variable name from ->get() context
         var_name = self._extract_variable_from_get_call(line, position)
         if not var_name:
             return False
-            
-        # Query Phpactor for type
-        var_type = await self._query_variable_type(doc, line, position)
+
+        # Create cache key
+        cache_key = (doc.uri, position.line, position.character)
+
+        # Check cache first
+        if cache_key in self._type_cache:
+            var_type = self._type_cache[cache_key]
+        else:
+            # Query Phpactor for type
+            var_type = await self._query_variable_type(doc, line, position)
+            # Cache the result (even if None)
+            self._type_cache[cache_key] = var_type
+
         if not var_type:
             return False
-            
+
         return self._is_container_interface(var_type)
-        
-    def _extract_variable_from_get_call(self, line: str, position: Position) -> Optional[str]:
+
+    def _extract_variable_from_get_call(self, line: str, position: Position) -> str | None:
         """Extract variable name from ->get() call context."""
         # Find ->get( before cursor
         get_pos = line.rfind("->get(", 0, position.character)
         if get_pos == -1:
             return None
-            
+
         # Find the variable before ->
         arrow_pos = line.rfind("->", 0, get_pos)
         if arrow_pos == -1:
             return None
-            
+
         # Extract variable (handle $this->var and $var patterns)
         var_part = line[arrow_pos - 20:arrow_pos].strip()
-        
+
         # Match variable patterns
         match = re.search(r'\$?(\w+)$', var_part)
         return match.group(1) if match else None
-        
-    async def _query_variable_type(self, doc, line: str, position: Position) -> Optional[str]:
+
+    async def _query_variable_type(self, doc, line: str, position: Position) -> str | None:
         """Query Phpactor for variable type at position."""
         if not self.phpactor_client:
             return None
-            
+
         try:
-            # This would integrate with Phpactor's type analysis
-            # Implementation depends on chosen Phpactor integration approach
-            return await self.phpactor_client.query_type(
-                doc.uri, position.line, position.character
-            )
+            # Handle both client types
+            if hasattr(self.phpactor_client, 'query_type'):  # LSP client (async)
+                return await self.phpactor_client.query_type(
+                    doc.uri, position.line, position.character
+                )
+            elif hasattr(self.phpactor_client, 'query_type_at_position'):  # RPC client (sync)
+                # Convert URI to file path for RPC client
+                file_path = doc.uri.replace("file://", "")
+                return self.phpactor_client.query_type_at_position(
+                    file_path, position.line, position.character
+                )
         except Exception:
             return None
-            
+
+        return None
+
     def _is_container_interface(self, type_str: str) -> bool:
         """Check if type represents a ContainerInterface."""
         container_types = [
@@ -110,10 +133,16 @@ class TypeChecker:
             "Psr\\Container\\ContainerInterface",
             "ContainerInterface",
             # Add Drupal-specific types
-            "Drupal\\Core\\DependencyInjection\\Container"
+            "Drupal\\Core\\DependencyInjection\\Container",
+            "Drupal\\Core\\DependencyInjection\\ContainerInterface",
         ]
-        
-        return any(container_type in type_str for container_type in container_types)
+
+        # Check for exact matches or inheritance
+        for container_type in container_types:
+            if container_type in type_str:
+                return True
+
+        return False
 ```
 
 #### 2. Update Service Capabilities
@@ -151,14 +180,69 @@ class ServicesCompletionCapability(CompletionCapability):
 ```python
 # drupalls/lsp/phpactor_client.py
 
-class PhpactorLspClient:
-    """LSP client for querying Phpactor."""
-    
-    async def query_type(self, uri: str, line: int, character: int) -> Optional[str]:
-        """Query type information via LSP."""
-        # Implementation would send custom LSP request to Phpactor
-        # and parse the type response
-        pass
+import asyncio
+import json
+from lsprotocol.types import InitializeParams, InitializeResult
+from pygls.lsp.client import BaseLanguageClient
+
+class PhpactorLspClient(BaseLanguageClient):
+    """LSP client for querying Phpactor type information."""
+
+    def __init__(self, server_command: list[str]):
+        super().__init__("phpactor", "phpactor")
+        self.server_command = server_command
+        self._server_process: asyncio.subprocess.Process | None = None
+
+    async def start(self) -> None:
+        """Start Phpactor LSP server process."""
+        self._server_process = await asyncio.create_subprocess_exec(
+            *self.server_command,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        # Initialize LSP handshake
+        await self.initialize()
+
+    async def initialize(self) -> InitializeResult:
+        """Perform LSP initialize handshake."""
+        params = InitializeParams(
+            process_id=None,
+            root_uri=None,  # Will be set per query
+            capabilities={},  # Minimal capabilities
+        )
+
+        return await self.send_request("initialize", params)
+
+    async def query_type(self, uri: str, line: int, character: int) -> str | None:
+        """Query the type of the symbol at the given position."""
+        from lsprotocol.types import TypeQueryParams, Position, TextDocumentIdentifier
+
+        # Define custom request (extends LSP)
+        class TypeQueryParams(TextDocumentPositionParams):
+            """Custom request to query variable type at position."""
+            pass
+
+        # Custom method name for type queries
+        METHOD_TYPE_QUERY = "phpactor/typeQuery"
+
+        params = TypeQueryParams(
+            text_document=TextDocumentIdentifier(uri=uri),
+            position=Position(line=line, character=character)
+        )
+
+        try:
+            response = await self.send_request(METHOD_TYPE_QUERY, params)
+            return response.get("type") if response else None
+        except Exception:
+            return None
+
+    async def stop(self) -> None:
+        """Stop the Phpactor server."""
+        if self._server_process:
+            self._server_process.terminate()
+            await self._server_process.wait()
 ```
 
 #### Option 2: Direct Phpactor RPC
@@ -166,14 +250,163 @@ class PhpactorLspClient:
 ```python
 # drupalls/lsp/phpactor_rpc.py
 
+import subprocess
+import json
+
 class PhpactorRpcClient:
-    """RPC client for Phpactor type queries."""
-    
-    def query_type_at_offset(self, file_path: str, offset: int) -> Optional[str]:
-        """Query type using Phpactor RPC."""
-        # Implementation would call phpactor RPC commands
-        pass
+    """RPC client for Phpactor type queries using direct command execution."""
+
+    def __init__(self, working_directory: str):
+        self.working_directory = working_directory
+
+    def query_type_at_offset(self, file_path: str, offset: int) -> str | None:
+        """Get type information at file offset using Phpactor RPC."""
+        try:
+            # Call phpactor via subprocess
+            result = subprocess.run(
+                ["phpactor", "rpc", "--working-dir", self.working_directory],
+                input=json.dumps({
+                    "action": "type_at_offset",
+                    "parameters": {
+                        "source_path": file_path,
+                        "offset": offset
+                    }
+                }),
+                capture_output=True,
+                text=True,
+                cwd=self.working_directory,
+                timeout=5  # 5 second timeout
+            )
+
+            if result.returncode == 0:
+                response = json.loads(result.stdout)
+                return response.get("type")
+
+        except subprocess.TimeoutExpired:
+            # Timeout - Phpactor took too long
+            pass
+        except Exception:
+            # Other errors (phpactor not found, etc.)
+            pass
+
+        return None
+
+    def query_type_at_position(self, file_path: str, line: int, character: int) -> str | None:
+        """Get type information at line/character position."""
+        try:
+            # Convert position to byte offset
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            lines = content.splitlines()
+            offset = 0
+
+            # Calculate offset up to the target line
+            for i in range(line):
+                if i < len(lines):
+                    offset += len(lines[i]) + 1  # +1 for newline
+
+            # Add character offset within the line
+            if line < len(lines):
+                offset += min(character, len(lines[line]))
+
+            return self.query_type_at_offset(file_path, offset)
+
+        except Exception:
+            return None
 ```
+
+## Comparison: LSP vs RPC Integration
+
+### Overview
+
+Both integration approaches achieve the same goal - querying Phpactor for type information - but differ in implementation complexity and reliability.
+
+### LSP-Based Integration (Recommended)
+
+**Architecture:** Uses Phpactor's LSP server as a proper language server client.
+
+| Aspect | LSP-Based Integration |
+|--------|----------------------|
+| **Setup Complexity** | ⭐⭐⭐ Medium (requires LSP server setup) |
+| **Reliability** | ⭐⭐⭐⭐⭐ High (standard LSP protocol) |
+| **Performance** | ⭐⭐⭐⭐ Good (persistent connection, async) |
+| **Error Handling** | ⭐⭐⭐⭐⭐ Excellent (LSP error handling) |
+| **Maintenance** | ⭐⭐⭐ Low (standard protocol) |
+| **Dependencies** | ⭐⭐⭐ Requires LSP-capable Phpactor |
+| **Scalability** | ⭐⭐⭐⭐⭐ Excellent (connection pooling possible) |
+
+**Pros:**
+- ✅ **Standard Protocol**: Uses established LSP communication patterns
+- ✅ **Better Error Handling**: LSP provides structured error responses
+- ✅ **Rich Features**: Can leverage full LSP capabilities if needed
+- ✅ **Async by Design**: Natural fit for async Python applications
+- ✅ **Connection Reuse**: Single persistent connection for multiple queries
+
+**Cons:**
+- ⚠️ **Setup Complexity**: Requires Phpactor LSP server configuration
+- ⚠️ **Dependency**: Needs LSP-enabled Phpactor installation
+- ⚠️ **Protocol Overhead**: LSP message formatting/parsing overhead
+
+### RPC-Based Integration (Simpler Alternative)
+
+**Architecture:** Direct command execution of Phpactor RPC calls.
+
+| Aspect | RPC-Based Integration |
+|--------|----------------------|
+| **Setup Complexity** | ⭐⭐⭐⭐⭐ Easy (direct command execution) |
+| **Reliability** | ⭐⭐⭐ Good (depends on command execution) |
+| **Performance** | ⭐⭐⭐⭐ Good (no connection overhead) |
+| **Error Handling** | ⭐⭐⭐ Adequate (subprocess error handling) |
+| **Maintenance** | ⭐⭐⭐⭐ Low (simple subprocess calls) |
+| **Dependencies** | ⭐⭐⭐⭐ Minimal (just Phpactor CLI) |
+| **Scalability** | ⭐⭐⭐ Good (process spawning limits) |
+
+**Pros:**
+- ✅ **Simple Setup**: Just needs Phpactor CLI available in PATH
+- ✅ **No Server Management**: No need to start/manage LSP server process
+- ✅ **Direct Access**: Immediate command execution without protocol overhead
+- ✅ **Easy Debugging**: Can manually test Phpactor commands
+- ✅ **Minimal Dependencies**: Works with any Phpactor installation
+
+**Cons:**
+- ⚠️ **Process Overhead**: Spawns subprocess for each query
+- ⚠️ **Timeout Issues**: Command execution may timeout or hang
+- ⚠️ **Error Parsing**: Need to parse command output manually
+- ⚠️ **No Connection Reuse**: Each query creates new process
+- ⚠️ **Less Robust**: Dependent on command-line interface stability
+
+### Recommendation
+
+**Use LSP-Based Integration when:**
+- You want maximum reliability and performance
+- You're already using Phpactor LSP server
+- You need advanced LSP features beyond type checking
+- Long-term maintenance is a priority
+
+**Use RPC-Based Integration when:**
+- You want the simplest possible setup
+- You have Phpactor CLI but not LSP server
+- You're prototyping or have limited time
+- Process spawning overhead is acceptable
+
+### Migration Path
+
+You can start with RPC-based integration for simplicity and migrate to LSP-based later:
+
+```python
+# Easy switch between implementations
+if USE_LSP_INTEGRATION:
+    phpactor_client = PhpactorLspClient(["phpactor", "language-server"])
+    await phpactor_client.start()
+else:
+    phpactor_client = PhpactorRpcClient(project_root)
+
+# Same TypeChecker interface works with both
+type_checker = TypeChecker(phpactor_client)
+```
+
+Both approaches provide the same `TypeChecker` interface, so you can switch implementations without changing the rest of your code.
 
 ## Updated SERVICE_PATTERN
 
@@ -211,13 +444,15 @@ class MyController {
 
 ## Testing
 
-### Test Case: Type Validation
+### Test Case: LSP Client Integration
 
 ```python
 @pytest.mark.asyncio
-async def test_container_type_validation(tmp_path):
-    """Test that ->get() only triggers for ContainerInterface variables."""
-    
+async def test_lsp_client_type_query(tmp_path):
+    """Test PhpactorLspClient type querying."""
+    from drupalls.lsp.phpactor_client import PhpactorLspClient
+
+    # Create test PHP file
     php_file = tmp_path / "test.php"
     php_file.write_text("""
 <?php
@@ -225,35 +460,122 @@ async def test_container_type_validation(tmp_path):
 class TestController {
     /** @var \Symfony\Component\DependencyInjection\ContainerInterface */
     protected $container;
-    
+
+    public function test() {
+        $service = $this->container->get('entity_type.manager');
+    }
+}
+""")
+
+    # Start Phpactor LSP client (requires Phpactor to be installed)
+    client = PhpactorLspClient(["phpactor", "language-server"])
+    await client.start()
+
+    try:
+        # Query type at the container variable position
+        var_type = await client.query_type(
+            uri=f'file://{php_file}',
+            line=7,  # Line with $this->container->get
+            character=25  # Position of 'container'
+        )
+
+        # Should return the ContainerInterface type
+        assert var_type is not None
+        assert "ContainerInterface" in var_type
+
+    finally:
+        await client.stop()
+```
+
+### Test Case: RPC Client Integration
+
+```python
+def test_rpc_client_type_query(tmp_path):
+    """Test PhpactorRpcClient type querying."""
+    from drupalls.lsp.phpactor_rpc import PhpactorRpcClient
+
+    # Create test PHP file
+    php_file = tmp_path / "test.php"
+    php_file.write_text("""
+<?php
+
+class TestController {
+    /** @var \Symfony\Component\DependencyInjection\ContainerInterface */
+    protected $container;
+
+    public function test() {
+        $service = $this->container->get('entity_type.manager');
+    }
+}
+""")
+
+    # Create RPC client
+    client = PhpactorRpcClient(str(tmp_path))
+
+    # Query type at line/character position
+    var_type = client.query_type_at_position(
+        str(php_file),
+        line=7,  # Line with $this->container->get
+        character=25  # Position of 'container'
+    )
+
+    # Should return the ContainerInterface type
+    assert var_type is not None
+    assert "ContainerInterface" in var_type
+```
+
+### Test Case: Complete Type Validation
+
+```python
+@pytest.mark.asyncio
+async def test_container_type_validation(tmp_path):
+    """Test that ->get() only triggers for ContainerInterface variables."""
+    from drupalls.lsp.phpactor_integration import TypeChecker
+    from drupalls.lsp.phpactor_client import PhpactorLspClient
+
+    php_file = tmp_path / "test.php"
+    php_file.write_text("""
+<?php
+
+class TestController {
+    /** @var \Symfony\Component\DependencyInjection\ContainerInterface */
+    protected $container;
+
     /** @var \Some\Other\Service */
     protected $otherService;
-    
+
     public function test() {
         $service = $this->container->get('entity_type.manager');    // Should work
         $value = $this->otherService->get('param');               // Should not work
     }
 }
 """)
-    
-    # Setup with type checker
-    type_checker = TypeChecker(phpactor_client=MockPhpactorClient())
-    server = create_server()
-    capability = ServicesCompletionCapability(server, type_checker)
-    
-    # Test container variable
-    params1 = CompletionParams(
-        text_document=TextDocumentIdentifier(uri=f'file://{php_file}'),
-        position=Position(line=8, character=42)  # On 'entity_type.manager'
-    )
-    assert await capability.can_handle(params1) == True
-    
-    # Test non-container variable
-    params2 = CompletionParams(
-        text_document=TextDocumentIdentifier(uri=f'file://{php_file}'),
-        position=Position(line=9, character=38)  # On 'param'
-    )
-    assert await capability.can_handle(params2) == False
+
+    # Setup with LSP client
+    phpactor_client = PhpactorLspClient(["phpactor", "language-server"])
+    await phpactor_client.start()
+
+    try:
+        type_checker = TypeChecker(phpactor_client)
+        server = create_server()
+        capability = ServicesCompletionCapability(server, type_checker)
+
+        # Test container variable
+        params1 = CompletionParams(
+            text_document=TextDocumentIdentifier(uri=f'file://{php_file}'),
+            position=Position(line=8, character=42)  # On 'entity_type.manager'
+        )
+        assert await capability.can_handle(params1) == True
+
+        # Test non-container variable
+        params2 = CompletionParams(
+            text_document=TextDocumentIdentifier(uri=f'file://{php_file}'),
+            position=Position(line=9, character=38)  # On 'param'
+        )
+        assert await capability.can_handle(params2) == False
+
+    finally:
+        await phpactor_client.stop()
 ```
 
 ## Error Handling and Fallbacks
@@ -297,19 +619,19 @@ def _basic_container_check(self, line: str) -> bool:
 ```python
 class TypeCache:
     """Cache type queries to improve performance."""
-    
+
     def __init__(self):
         self._cache = {}
         self._ttl = 300  # 5 minutes
-        
-    async def get_type(self, key: tuple, fetcher) -> Optional[str]:
+
+    async def get_type(self, key: tuple, fetcher) -> str | None:
         if key in self._cache:
             return self._cache[key]
-            
+
         type_info = await fetcher()
         if type_info:
             self._cache[key] = type_info
-            
+
         return type_info
 ```
 
@@ -331,27 +653,80 @@ class ServicesDefinitionCapability(DefinitionCapability):
     # Use the same TypeChecker instance
 ```
 
-## Configuration
+## Configuration and Setup
 
-### Optional Type Checking
+### 1. Choose Integration Method
+
+```python
+# drupalls/lsp/server.py
+
+def create_server() -> DrupalLanguageServer:
+    server = DrupalLanguageServer("drupalls", "0.1.0")
+
+    # Choose one integration method:
+
+    # Option 1: LSP-based (more robust, requires Phpactor LSP server)
+    phpactor_client = PhpactorLspClient(["phpactor", "language-server"])
+    await phpactor_client.start()
+
+    # Option 2: RPC-based (simpler, direct command execution)
+    # phpactor_client = PhpactorRpcClient(project_root)
+
+    # Pass to capabilities
+    server.phpactor_client = phpactor_client
+
+    # Register capabilities with phpactor client
+    server.capability_manager = CapabilityManager(server, phpactor_client)
+
+    return server
+```
+
+### 2. Optional Type Checking Configuration
 
 ```python
 # In server configuration
-ENABLE_TYPE_CHECKING = True  # Enable for accuracy
+ENABLE_TYPE_CHECKING = True  # Enable for accuracy (recommended)
 # or
-ENABLE_TYPE_CHECKING = False  # Disable for performance/simplicity
+ENABLE_TYPE_CHECKING = False  # Disable for performance/simplicity (fallback to heuristics)
+```
+
+### 3. Server Initialization with Type Checking
+
+```python
+# drupalls/lsp/capabilities/capabilities.py
+
+class CapabilityManager:
+    def __init__(self, server: DrupalLanguageServer, phpactor_client=None):
+        self.server = server
+        self.phpactor_client = phpactor_client
+
+        # Create type checker if Phpactor is available
+        type_checker = None
+        if phpactor_client:
+            type_checker = TypeChecker(phpactor_client)
+
+        # Initialize capabilities with type checker
+        self.capabilities = {
+            "services_completion": ServicesCompletionCapability(server, type_checker),
+            "services_hover": ServicesHoverCapability(server, type_checker),
+            "services_definition": ServicesDefinitionCapability(server, type_checker),
+            "services_references": ServicesReferencesCapability(server, type_checker),
+        }
 ```
 
 ## Summary
 
-This implementation provides accurate, type-aware service completion:
+This implementation provides complete, production-ready type-aware service completion:
 
-1. **Detect `->get()` calls** in source code
-2. **Query variable types** using Phpactor integration
-3. **Validate ContainerInterface** before providing completions
-4. **Fallback gracefully** when type checking is unavailable
+1. **Two integration options**: LSP-based client (robust) and RPC-based client (simple)
+2. **Complete client implementations**: Full PhpactorLspClient and PhpactorRpcClient classes
+3. **Type checking system**: Comprehensive TypeChecker with caching and error handling
+4. **Service capability integration**: Updated all service capabilities to use type validation
+5. **Fallback mechanisms**: Graceful degradation when Phpactor is unavailable
+6. **Performance optimizations**: Caching and asynchronous processing
+7. **Comprehensive testing**: Examples for both client types and full integration
 
-The result is precise service completion that only triggers for actual dependency injection usage, eliminating false positives from other `get()` methods while maintaining high performance through caching and asynchronous processing.
+The result is precise service completion that only triggers for actual dependency injection usage, eliminating false positives from other `get()` methods while maintaining high performance and reliability.
 
 ## References
 

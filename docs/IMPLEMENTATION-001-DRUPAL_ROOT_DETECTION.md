@@ -20,9 +20,8 @@ The most reliable indicator of a Drupal installation is the presence of `core/li
 
 ```python
 from pathlib import Path
-from typing import Optional
 
-def find_drupal_root(workspace_root: Path) -> Optional[Path]:
+def find_drupal_root(workspace_root: Path) -> Path | None:
     """
     Find the Drupal root directory within a workspace.
     
@@ -216,7 +215,7 @@ For Composer-based projects, check `composer.json` for Drupal packages:
 ```python
 import json
 
-def find_drupal_root_via_composer(workspace_root: Path) -> Optional[Path]:
+def find_drupal_root_via_composer(workspace_root: Path) -> Path | None:
     """
     Find Drupal root by parsing composer.json.
     
@@ -297,7 +296,6 @@ def _is_drupal_root_simple(path: Path) -> bool:
 import hashlib
 import json
 from pathlib import Path
-from typing import Optional
 
 
 def calculate_file_hash(file_path: Path) -> str:
@@ -311,10 +309,10 @@ def calculate_file_hash(file_path: Path) -> str:
     return sha256.hexdigest()
 
 
-def find_drupal_root(workspace_root: Path) -> Optional[Path]:
+def find_drupal_root(workspace_root: Path) -> Path | None:
     """
     Find the Drupal root directory within a workspace.
-    
+
     Searches for the directory containing 'core/lib/Drupal'.
     
     Args:
@@ -396,10 +394,10 @@ def find_all_drupal_roots(workspace_root: Path, max_depth: int = 3) -> list[Path
     return drupal_roots
 
 
-def find_drupal_root_via_composer(workspace_root: Path) -> Optional[Path]:
+def find_drupal_root_via_composer(workspace_root: Path) -> Path | None:
     """
     Find Drupal root by parsing composer.json.
-    
+
     Looks for 'extra.drupal-scaffold.locations.web-root' configuration.
     """
     composer_file = workspace_root / "composer.json"
@@ -555,9 +553,9 @@ def test_custom_drupal_location(tmp_path):
 ```python
 class LanguageServer:
     def __init__(self):
-        self._drupal_root_cache: Optional[Path] = None
-    
-    def get_drupal_root(self, workspace_root: Path) -> Optional[Path]:
+        self._drupal_root_cache: Path | None = None
+
+    def get_drupal_root(self, workspace_root: Path) -> Path | None:
         """Get Drupal root with caching."""
         if self._drupal_root_cache is None:
             self._drupal_root_cache = find_drupal_root(workspace_root)
@@ -605,7 +603,7 @@ def is_drupal_root(path: Path) -> bool:
 Some hosting platforms exclude `core/` from the repository. In such cases:
 
 ```python
-def find_drupal_root_fallback(workspace_root: Path) -> Optional[Path]:
+def find_drupal_root_fallback(workspace_root: Path) -> Path | None:
     """
     Fallback detection for environments without core/.
     

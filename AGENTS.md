@@ -268,10 +268,48 @@ Links to related docs, LSP spec, Drupal docs.
 ### Code Examples Best Practices
 
 1. **Complete, not snippets**: Show full classes/methods
-2. **Type hints**: Always include Python type annotations
+2. **Modern type hints**: Use `| None` instead of `Optional[...]` and built-in types (`list`, `dict`) instead of `List[...]`, `Dict[...]` (Python 3.9+ syntax)
 3. **Comments**: Explain WHY, not just WHAT
 4. **Realistic**: Use actual Drupal examples (not `foo`/`bar`)
 5. **Error handling**: Show how to handle edge cases gracefully
+
+#### **Architecture Decision Record (ADR): Modern Python Syntax**
+
+**Decision**: All Python code examples in documentation MUST use modern Python 3.9+ type hinting syntax:
+- Use `| None` instead of `Optional[...]`
+- Use built-in types (`list`, `dict`, `set`, `tuple`) instead of `List[...]`, `Dict[...]`, etc.
+- Remove unnecessary imports from `typing` module
+
+**Rationale**:
+- **Consistency**: Modern syntax is more readable and concise
+- **Future-proofing**: Aligns with Python's direction and best practices
+- **Readability**: `str | None` is clearer than `Optional[str]`, `list[str]` is clearer than `List[str]`
+- **Standards**: Follows PEP 604 (union syntax) and PEP 585 (built-in generics)
+
+**Examples**:
+```python
+# ✅ Modern syntax (REQUIRED)
+def get_user(name: str) -> User | None:
+    pass
+
+def get_items() -> list[Item]:
+    return []
+
+def get_config() -> dict[str, str]:
+    return {}
+
+# ❌ Legacy syntax (NOT ALLOWED)
+def get_user(name: str) -> Optional[User]:
+    pass
+
+def get_items() -> List[Item]:
+    return []
+
+def get_config() -> Dict[str, str]:
+    return {}
+```
+
+**Enforcement**: All code examples must follow this convention. Legacy syntax should be updated when encountered.
 
 ### Diagram Best Practices
 
