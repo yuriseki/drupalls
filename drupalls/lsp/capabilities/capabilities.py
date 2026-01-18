@@ -23,7 +23,9 @@ from lsprotocol.types import (
     Hover,
     HoverParams,
     Location,
+    ReferenceParams,
 )
+
 
 if TYPE_CHECKING:
     from drupalls.lsp.drupal_language_server import DrupalLanguageServer
@@ -115,26 +117,39 @@ class DefinitionCapability(Capability):
 
     @abstractmethod
     async def definition(
-         self, params: DefinitionParams
+        self, params: DefinitionParams
     ) -> Location | list[Location] | None:
         """Provide definition location(s)"""
         pass
 
+
+class ReferencesCapability(Capability):
+    """Base class for references capabilities."""
+
+    @abstractmethod
+    async def can_handle(self, params: ReferenceParams) -> bool:
+        pass
+
+    @abstractmethod
+    async def find_references(self, params: ReferenceParams) -> list[Location]:
+        pass
+
+
 class CapabilityManager:
     """
     Central manager for all LSP capabilities.
-    
+
     Similar to WorkspaceCache, this manages all capability plugins
     and provides methods to register and access them.
-    
+
     Usage:
         # In server initialization
         manager = CapabilityManager(server)
         manager.register_all()
-        
+
         # Capabilities are automatically registered with server
     """
-    
+
     def __init__(
         self,
         server: DrupalLanguageServer,
@@ -149,6 +164,7 @@ class CapabilityManager:
                 ServicesDefinitionCapability,
                 ServicesHoverCapability,
                 ServicesYamlDefinitionCapability,
+                ServicesReferencesCapability,
             )
 
             capabilities = {
@@ -156,6 +172,7 @@ class CapabilityManager:
                 "services_hover": ServicesHoverCapability(server),
                 "services_definition": ServicesDefinitionCapability(server),
                 "services_yaml_definition": ServicesYamlDefinitionCapability(server),
+                "services_references": ServicesReferencesCapability(server),
                 # TODO: Implements other capabilities.
                 # "hooks_completion": HooksCompletionCapability(server)
                 # "config_completion": ConfigCompletionCapability(server)
@@ -174,7 +191,6 @@ class CapabilityManager:
 
         self._registered = True
 
-
     def get_capability(self, name: str) -> Capability | None:
         """Get a specific capability by name"""
         return self.capabilities.get(name)
@@ -182,7 +198,8 @@ class CapabilityManager:
     def get_capabilities_by_type(self, capability_type: type) -> list[Capability]:
         """Get all capabilities of a specific type (e.g., all CompletionCapability)."""
         return [
-            cap for cap in self.capabilities.values()
+            cap
+            for cap in self.capabilities.values()
             if isinstance(cap, capability_type)
         ]
 
@@ -197,7 +214,7 @@ class CapabilityManager:
 
         for capability in self.get_capabilities_by_type(CompletionCapability):
             if await capability.can_handle(params):
-                result = await capability.complete(params)
+                result = await capability.complete(params)  # pyright: ignore
                 all_items.extend(result.items)
 
         return CompletionList(is_incomplete=False, items=all_items)
@@ -210,21 +227,30 @@ class CapabilityManager:
         """
         for capability in self.get_capabilities_by_type(HoverCapability):
             if await capability.can_handle(params):
-                result = await capability.hover(params)
+                result = await capability.hover(params)  # pyright: ignore
                 if result:
                     return result
 
         return None
 
-    async def handle_definition(self, params: DefinitionParams) -> Location | list[Location] | None:
+    async def handle_definition(
+        self, params: DefinitionParams
+    ) -> Location | list[Location] | None:
         """Handle definition requests by delegating to capable handlers."""
         for capability in self.get_capabilities_by_type(DefinitionCapability):
             if await capability.can_handle(params):
-                result = await capability.definition(params)
+                result = await capability.definition(params)  # pyright: ignore
                 if result:
                     return result
-        
+
         return None
 
+    async def handle_references(self, params: ReferenceParams) -> list[Location] | None:
+        """Handle references request by delegating to capable handlers."""
+        for capability in self.get_capabilities_by_type(ReferencesCapability):
+            if await capability.can_handle(params):
+                result = await capability.find_references(params)  # pyright: ignore
+                if result:
+                    return result
 
-        
+        return None

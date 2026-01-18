@@ -4,6 +4,7 @@ Services-related LSP capabilities.
 Provides completion, hover, and definition for Drupal services.
 """
 
+import os
 from pathlib import Path
 import re
 from lsprotocol.types import (
@@ -22,19 +23,23 @@ from lsprotocol.types import (
     MessageType,
     Position,
     Range,
+    ReferenceParams,
 )
 from pygls import workspace
 from drupalls.lsp.capabilities.capabilities import (
     CompletionCapability,
     DefinitionCapability,
     HoverCapability,
+    ReferencesCapability,
 )
 
 from drupalls.utils.resolve_class_file import resolve_class_file
+from drupalls.workspace import services_cache
 from drupalls.workspace.services_cache import ServiceDefinition, ServicesCache
 
 
 # Check for service patterns
+# TODO: Include variables of type container for dependency injection.
 SERVICE_PATTERN = re.compile(r'::service\([\'"]?|getContainer\(\)->get\([\'"]?')
 
 
@@ -418,3 +423,133 @@ class ServicesYamlDefinitionCapability(DefinitionCapability):
             pass
 
         return 0
+
+
+class ServicesReferencesCapability(ReferencesCapability):
+    """Find all references to Drupal services."""
+
+    @property
+    def name(self) -> str:
+        return "services_references"
+
+    @property
+    def description(self) -> str:
+        return "Find all usages of a Drupal service"
+
+    async def can_handle(self, params: ReferenceParams) -> bool:
+        """Check if cursor is on a service identifier."""
+        if not self.workspace_cache:
+            return False
+
+        doc = self.server.workspace.get_text_document(params.text_document.uri)
+        line = doc.lines[params.position.line]
+
+        return bool(SERVICE_PATTERN.search(line))
+
+    async def find_references(self, params: ReferenceParams) -> list[Location]:
+        """Find all references to the search under cursor."""
+        if not self.workspace_cache:
+            return []
+
+        # Get service ID under cursor
+        doc = self.server.workspace.get_text_document(params.text_document.uri)
+        word = doc.word_at_position(
+            params.position,
+            re_start_word=re.compile(r"[A-Za-z_][A-Za-z0-9_.]*$"),
+            re_end_word=re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*"),
+        )
+
+        if not word:
+            return []
+
+        # Get services cache to verify this is a valid service
+        services_cache = self.workspace_cache.caches.get("services")
+        if not services_cache or not services_cache.get(word):
+            return []
+
+        # Search all PHP files for service usage
+        locations = []
+        await self._search_files_for_service(word, locations)
+
+        return locations
+
+    async def _search_files_for_service(
+        self, service_id: str, locations: list[Location]
+    ):
+        """Search all PHP files for usage of the service."""
+        if not self.workspace_cache:
+            return []
+
+        # Search patterns for service usage
+        # TODO: Include dependency injection in the patterns.
+        patterns = [
+            rf'\\Drupal::service\(\s*[\'"]({re.escape(service_id)})[\'"]\s*\)',
+            rf'\\Drupal::getContainer\(\)->get\(\s*[\'"]({re.escape(service_id)})[\'"]\s*\)',
+        ]
+
+        # Get all files in the workspace
+        php_files = []
+        for root, dirs, files in os.walk(self.workspace_cache.workspace_root):
+            for file in files:
+                if file.endswith((".php", ".module", ".inc", ".install")):
+                    php_files.append(Path(root) / file)
+
+        for php_file in php_files:
+            await self._search_file_for_service(
+                php_file, service_id, patterns, locations
+            )
+
+    async def _search_file_for_service(
+        self,
+        file_path: Path,
+        service_id: str,
+        patterns: list[str],
+        locations: list[Location],
+    ):
+        """Search a single file for service references."""
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            lines = content.splitlines()
+
+            for pattern in patterns:
+                for match in re.finditer(pattern, content):
+                    # Get line number
+                    line_num = content[: match.start()].count("\n")
+
+                    # Get column position of service ID with the line
+                    line_start = content.rfind("\n", 0, match.start()) + 1
+                    col_start = match.start() - line_start
+
+                    # Find the actual service ID within the match
+                    service_match = re.search(
+                        rf"['\"]({re.escape(service_id)})['\"]", match.group()
+                    )
+                    if service_match:
+                        service_col = col_start + service_match.start(1)
+
+                        locations.append(
+                            Location(
+                                uri=file_path.as_uri(),
+                                range=Range(
+                                    start=Position(
+                                        line=line_num, character=service_col
+                                    ),
+                                    end=Position(
+                                        line=line_num,
+                                        character=service_col + len(service_id),
+                                    ),
+                                ),
+                            )
+                        )
+
+        except Exception as e:
+            # Log and continue with other files
+            if self.server:
+                self.server.window_log_message(
+                    LogMessageParams(
+                        type=MessageType.Warning,
+                        message=f"Error searching {file_path}: {e}",
+                    )
+                )

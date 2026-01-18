@@ -17,6 +17,8 @@ from lsprotocol.types import (
     DefinitionParams,
     HoverParams,
     Position,
+    ReferenceContext,
+    ReferenceParams,
     TextDocumentIdentifier,
 )
 
@@ -24,6 +26,7 @@ from drupalls.lsp.capabilities.services_capabilities import (
     ServicesCompletionCapability,
     ServicesDefinitionCapability,
     ServicesHoverCapability,
+    ServicesReferencesCapability,
     ServicesYamlDefinitionCapability,
 )
 from drupalls.lsp.server import create_server
@@ -200,7 +203,9 @@ async def test_services_completion_returns_all_services(drupal_workspace):
     assert "LoggerChannelFactory" in logger_item.detail
     assert logger_item.documentation is not None
     # documentation can be string or MarkupContent
-    doc_str = logger_item.documentation if isinstance(logger_item.documentation, str) else ""
+    doc_str = (
+        logger_item.documentation if isinstance(logger_item.documentation, str) else ""
+    )
     assert "core" in doc_str
 
 
@@ -261,6 +266,7 @@ async def test_services_hover_returns_service_information(drupal_workspace):
     else:
         # MarkupContent
         from lsprotocol.types import MarkupContent
+
         if isinstance(result.contents, MarkupContent):
             assert result.contents.kind == "markdown"
             assert "logger.factory" in result.contents.value
@@ -490,7 +496,7 @@ async def test_yaml_to_class_navigation(drupal_workspace):
         location = result[0]
     else:
         location = result
-    
+
     assert logger_factory_php.as_uri() == location.uri
     assert location.range.start.line == 4  # Class declaration on line 4 (0-indexed)
 
@@ -651,3 +657,75 @@ async def test_workspace_cache_integration(drupal_workspace):
     entity_service = services_cache.get("entity_type.manager")
     assert entity_service is not None
     assert entity_service.class_name == "Drupal\\Core\\Entity\\EntityTypeManager"
+
+
+@pytest.mark.asyncio
+async def test_find_service_references(tmp_path):
+    # Create core directory and services file
+    core_dir = tmp_path / "core"
+    core_dir.mkdir(exist_ok=True)
+    services_file = core_dir / "core.services.yml"
+    services_file.write_text(
+        """services:
+  entity_type.manager:
+    class: Drupal\\Core\\Entity\\EntityTypeManager
+  different.service:
+    class: Drupal\\Core\\Example\\DifferentService
+"""
+    )
+
+    """Test finding all references to a service."""
+    # Setup test files
+    php_file1 = tmp_path / "file1.php"
+    php_file1.write_text(
+        r"""
+<?php
+$service = \Drupal::service('entity_type.manager');
+$other = \Drupal::service('different.service');
+"""
+    )
+
+    php_file2 = tmp_path / "file2.php"
+    php_file2.write_text(
+        r"""
+<?php
+$manager = \Drupal::getContainer()->get('entity_type.manager');
+"""
+    )
+
+    # Create server and initialize
+    server = create_server()
+    server.workspace_cache = WorkspaceCache(tmp_path, tmp_path)
+    await server.workspace_cache.initialize()
+    mock_workspace = Mock()
+    server.protocol._workspace = mock_workspace
+    # Mock document for word extraction
+    mock_doc = Mock()
+    mock_doc.lines = [
+        "<?php",
+        "$service = \\Drupal::service('entity_type.manager');",
+        "$other = \\Drupal::service('different.service');",
+    ]
+    mock_doc.word_at_position = Mock(return_value="entity_type.manager")
+    mock_workspace.get_text_document.return_value = mock_doc
+
+    # Create capability
+    capability = ServicesReferencesCapability(server)
+
+    # Mock params pointing to 'entity_type.manager' in file1.php
+    params = ReferenceParams(
+        text_document=TextDocumentIdentifier(uri=f"file://{php_file1}"),
+        position=Position(line=1, character=25),  # On 'entity_type.manager'
+        context=ReferenceContext(include_declaration=False),
+    )
+
+    # Find references
+    locations = await capability.find_references(params)
+
+    # Should find 2 references
+    assert len(locations) == 2
+
+    # Check URIs
+    uris = {loc.uri for loc in locations}
+    assert f"file://{php_file1}" in uris
+    assert f"file://{php_file2}" in uris

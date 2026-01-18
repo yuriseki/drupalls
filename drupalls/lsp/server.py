@@ -2,6 +2,7 @@ from pathlib import Path
 
 from lsprotocol.types import (
     TEXT_DOCUMENT_DID_SAVE,
+    TEXT_DOCUMENT_REFERENCES,
     CompletionList,
     CompletionParams,
     DefinitionParams,
@@ -9,6 +10,7 @@ from lsprotocol.types import (
     HoverParams,
     LogMessageParams,
     MessageType,
+    ReferenceParams,
 )
 
 from drupalls.lsp.capabilities.capabilities import CapabilityManager
@@ -98,6 +100,12 @@ def create_server() -> DrupalLanguageServer:
     async def definition(ls: DrupalLanguageServer, params: DefinitionParams):
         if ls.capability_manager:
             return await ls.capability_manager.handle_definition(params)
+        return None
+
+    @server.feature(TEXT_DOCUMENT_REFERENCES)
+    async def references(ls: DrupalLanguageServer, params: ReferenceParams):
+        if ls.capability_manager:
+            return await ls.capability_manager.handle_references(params)
         return None
 
     return server

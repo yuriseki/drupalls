@@ -138,7 +138,7 @@ class WorkspaceCache:
         from drupalls.workspace.services_cache import ServicesCache
 
         self.project_root = project_root
-        self.workspace_root = workspace_root
+        self.workspace_root = workspace_root # Drupal root directory
         self.server = server
 
         # In-memory caches
