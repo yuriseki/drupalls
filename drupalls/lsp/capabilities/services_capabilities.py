@@ -157,15 +157,15 @@ class ServicesHoverCapability(HoverCapability):
 
             content = (
                 f"**Drupal Service:** `{word}`{chr(10)}"
-                f"**Class:** {service_def.class_name}{chr(10)}"
+                f"**Class:** {service_def.class_name}{chr(10)}"  # type: ignore
                 f"**Defined in:** {relative_path}"
             )
 
-            if service_def.arguments:
-                content += f"{chr(10)}**Arguments:** ({service_def.arguments})"
+            if service_def.arguments:  # type: ignore
+                content += f"{chr(10)}**Arguments:** ({service_def.arguments})"  # type: ignore
 
-            if service_def.tags:
-                content += f"{chr(10)}**Tags:** {service_def.tags}"
+            if service_def.tags:  # type: ignore
+                content += f"{chr(10)}**Tags:** {service_def.tags}"  # type: ignore
 
             return Hover(
                 contents=MarkupContent(kind=MarkupKind.Markdown, value=content)
@@ -323,12 +323,12 @@ class ServicesYamlDefinitionCapability(DefinitionCapability):
         if services_cache:
             # Look up the service definition
             service_def = services_cache.get(class_name)
-            if service_def and service_def.class_file_path:
-                class_file = Path(service_def.class_file_path)
+            if service_def and service_def.class_file_path:  # type: ignore
+                class_file = Path(service_def.class_file_path)  # type: ignore
                 if class_file.exists():
                     class_line = self._find_class_definition_line(
-                        class_file, 
-                        service_def.class_name,
+                        class_file,
+                        service_def.class_name,  # type: ignore
                     )
 
                     return Location(

@@ -331,9 +331,10 @@ class ServicesCache(CachedWorkspace):
         if not uri.endswith(".services.yml"):
             return
 
+        # Convert URI to file path
+        file_path = Path(uri.replace("file://", ""))
+
         try:
-            # Convert URI to file path
-            file_path = Path(uri.replace("file://", ""))
             if not file_path:
                 return
 
@@ -384,9 +385,10 @@ class ServicesCache(CachedWorkspace):
         if not uri.endswith(".services.yml"):
             return
 
+        # Convert URI to file path
+        file_path = Path(uri.replace("file://", ""))
+
         try:
-            # Convert URI to file path
-            file_path = Path(uri.replace("file://", ""))
             if not file_path:
                 return
 
