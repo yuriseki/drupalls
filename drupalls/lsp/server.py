@@ -1,9 +1,11 @@
 from pathlib import Path
 
 from lsprotocol.types import (
+    TEXT_DOCUMENT_DID_SAVE,
     CompletionList,
     CompletionParams,
     DefinitionParams,
+    DidSaveTextDocumentParams,
     HoverParams,
     LogMessageParams,
     MessageType,
@@ -62,7 +64,7 @@ def create_server() -> DrupalLanguageServer:
         ls.text_sync_manager.register_handlers()
 
         # Initialize cache
-        ls.workspace_cache = WorkspaceCache(project_root, drupal_root)
+        ls.workspace_cache = WorkspaceCache(project_root, drupal_root, server=ls)
         await ls.workspace_cache.initialize()
 
         count = len(ls.workspace_cache.caches["services"].get_all())

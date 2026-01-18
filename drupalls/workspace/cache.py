@@ -18,6 +18,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from drupalls.lsp.drupal_language_server import DrupalLanguageServer
 
 
 @dataclass
@@ -38,11 +42,27 @@ class CachedDataBase:
 
 
 class CachedWorkspace(ABC):
-    def __init__(self, workspace_cache: WorkspaceCache) -> None:
+    """Abstract base class for workspace caches."""
+
+    def __init__(
+        self,
+        workspace_cache: WorkspaceCache,
+        server: DrupalLanguageServer | None = None
+    ) -> None:
         self.workspace_cache = workspace_cache
+        self.server = server
         self.project_root = workspace_cache.project_root
         self.workspace_root = workspace_cache.workspace_root
         self.file_info = workspace_cache.file_info
+
+    def register_text_sync_hooks(self) -> None:
+        """
+        Register text sync hooks to keep cache up-to-date.
+
+        Override in subclasses to register hooks with TextSyncManager
+        that update the cache when relevant files change.
+        """
+        pass
 
     @abstractmethod
     async def initialize(self):
@@ -62,11 +82,11 @@ class CachedWorkspace(ABC):
 
     # ===== Cache Persistence =====
     @abstractmethod
-    def load_from_disk(self) -> bool:
+    async def load_from_disk(self) -> bool:
         pass
 
     @abstractmethod
-    def save_to_disk(self):
+    async def save_to_disk(self):
         pass
 
     @abstractmethod
@@ -109,18 +129,21 @@ class WorkspaceCache:
     """
 
     def __init__(
-        self, project_root: Path, workspace_root: Path, caches: dict[str, CachedWorkspace] | None = None
+        self,
+        project_root: Path,
+        workspace_root: Path,
+        caches: dict[str, CachedWorkspace] | None = None,
+        server: DrupalLanguageServer | None = None,
     ):
         from drupalls.workspace.services_cache import ServicesCache
 
         self.project_root = project_root
         self.workspace_root = workspace_root
+        self.server = server
 
         # In-memory caches
         self.file_info: dict[Path, FileInfo] = {}
-        self.caches = caches or {
-            "services": ServicesCache(self)
-        }
+        self.caches = caches or {"services": ServicesCache(self)}
 
         # State
         self._initialized = False
@@ -139,8 +162,11 @@ class WorkspaceCache:
         if self._initialized:
             return
 
+        # Register hooks for all caches
+        self._register_text_sync_hooks()
+
         # Try to load from disk cache first
-        if self.enable_disk_cache and self._load_from_disk():
+        if self.enable_disk_cache and await self._load_from_disk():
             self._initialized = True
             return
 
@@ -153,7 +179,7 @@ class WorkspaceCache:
 
         # Save to disk for next time
         if self.enable_disk_cache:
-            self._save_to_disk()
+            await self._save_to_disk()
 
         self._initialized = True
         self._last_scan = datetime.now()
@@ -164,22 +190,28 @@ class WorkspaceCache:
             if isinstance(c, CachedWorkspace):
                 await c.scan()
 
+    def _register_text_sync_hooks(self) -> None:
+        """Register text sync hooks for all caches."""
+        for cache in self.caches.values():
+            if isinstance(cache, CachedWorkspace):
+                cache.register_text_sync_hooks()
+
     def invalidate_file(self, file_path: Path):
         for c in self.caches.values():
             if isinstance(c, CachedWorkspace):
                 c.invalidate_file(file_path)
 
     # ===== Cache Persistence =====
-    def _load_from_disk(self) -> bool:
+    async def _load_from_disk(self) -> bool:
         result = False
         for c in self.caches.values():
             if isinstance(c, CachedWorkspace):
-                if c.load_from_disk():
+                if await c.load_from_disk():
                     result = True
 
         return result
 
-    def _save_to_disk(self):
+    async def _save_to_disk(self):
         for c in self.caches.values():
             if isinstance(c, CachedWorkspace):
-                c.save_to_disk()
+                await c.save_to_disk()
