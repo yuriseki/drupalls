@@ -34,12 +34,13 @@ from drupalls.lsp.capabilities.capabilities import (
     ReferencesCapability,
 )
 
+from drupalls.lsp.drupal_language_server import DrupalLanguageServer
 from drupalls.utils.resolve_class_file import resolve_class_file
 from drupalls.workspace.services_cache import ServiceDefinition, ServicesCache
 
 
 # Check for service patterns
-# TODO: Include variables of type container for dependency injection.
+# TODO: use this pattern in all functions.
 SERVICE_PATTERN = re.compile(r'::service\([\'"]?|getContainer\(\)->get\([\'"]?')
 
 
@@ -63,7 +64,14 @@ class ServicesCompletionCapability(CompletionCapability):
         doc = self.server.workspace.get_text_document(params.text_document.uri)
         line = doc.lines[params.position.line]
 
-        return True if SERVICE_PATTERN.search(line) else False
+        if SERVICE_PATTERN.search(line):
+            return True
+
+        # Check for ->get() calls with type validation
+        if self.server.type_checker and "->get(" in line:
+            return await self.server.type_checker.is_container_variable(doc, line, params.position)
+
+        return False
 
     async def complete(self, params: CompletionParams) -> CompletionList:
         """Provide service name completions."""
@@ -126,7 +134,14 @@ class ServicesHoverCapability(HoverCapability):
         doc = self.server.workspace.get_text_document(params.text_document.uri)
         line = doc.lines[params.position.line]
 
-        return True if SERVICE_PATTERN.search(line) else False
+        if SERVICE_PATTERN.search(line):
+            return True
+
+        # Check for ->get() calls with type validation
+        if self.server.type_checker and "->get(" in line:
+            return await self.server.type_checker.is_container_variable(doc, line, params.position)
+
+        return False
 
     async def hover(self, params: HoverParams) -> Hover | None:
         """Provide hover information for services"""
@@ -197,7 +212,15 @@ class ServicesDefinitionCapability(DefinitionCapability):
         doc = self.server.workspace.get_text_document(params.text_document.uri)
         line = doc.lines[params.position.line]
 
-        return True if SERVICE_PATTERN.search(line) else False
+        if SERVICE_PATTERN.search(line):
+            return True
+
+        # Check for ->get() calls with type validation
+        if self.server.type_checker and "->get(" in line:
+            return await self.server.type_checker.is_container_variable(doc, line, params.position)
+
+        return False
+
 
     async def definition(self, params: DefinitionParams) -> Location | None:
         """Provide definition location for services."""
@@ -450,7 +473,15 @@ class ServicesReferencesCapability(ReferencesCapability):
         # Handle PHP files
         line = doc.lines[params.position.line]
 
-        return bool(SERVICE_PATTERN.search(line))
+        if SERVICE_PATTERN.search(line):
+            return True
+
+        # Check for ->get() calls with type validation
+        if self.server.type_checker and "->get(" in line:
+            return await self.server.type_checker.is_container_variable(doc, line, params.position)
+
+        return False
+
 
     async def _can_handle_yaml_file(self, params: ReferenceParams, doc: TextDocument) -> bool:
         """Check if cursor in on an service ID in a YAML file."""

@@ -301,12 +301,15 @@ class PhpactorCLI:
 # drupalls/lsp/phpactor_rpc.py
 
 from drupalls.phpactor_cli import PhpactorCLI
+from pathlib import Path
 
 class PhpactorRpcClient:
     """RPC client for Phpactor type queries using direct command execution."""
 
     def __init__(self, working_directory: str):
-        self.working_directory = working_directory
+        self.working_directory = Path(working_directory)
+        # Initialize bundled Phpactor CLI
+        self.cli = PhpactorCLI(project_root=self.working_directory)
 
     def query_type_at_offset(self, file_path: str, offset: int) -> str | None:
         """Get type at offset using bundled CLI."""

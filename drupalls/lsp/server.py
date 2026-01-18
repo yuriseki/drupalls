@@ -15,6 +15,8 @@ from lsprotocol.types import (
 
 from drupalls.lsp.capabilities.capabilities import CapabilityManager
 from drupalls.lsp.drupal_language_server import DrupalLanguageServer
+from drupalls.lsp.phpactor_integration import TypeChecker
+from drupalls.lsp.phpactor_rpc import PhpactorRpcClient
 from drupalls.lsp.text_sync_manager import TextSyncManager
 from drupalls.utils.find_files import find_drupal_root
 from drupalls.workspace.cache import WorkspaceCache
@@ -41,6 +43,7 @@ def create_server() -> DrupalLanguageServer:
         """
         Initialize the server and set up any necessary state.
         """
+
         # Get workspace root from LSP params
         workspace_root = Path(params.root_uri.replace("file://", ""))
 
@@ -59,6 +62,10 @@ def create_server() -> DrupalLanguageServer:
         ls.window_log_message(
             LogMessageParams(MessageType.Info, f"Drupal root detected: {drupal_root}")
         )
+
+        phpactor_client = PhpactorRpcClient(drupal_root)
+        type_checker = TypeChecker(phpactor_client)
+        server.type_checker = type_checker
 
         # Initialize TextSyncManager BEFORE capabilities
         # so capabilities can register hooks during their initialization.

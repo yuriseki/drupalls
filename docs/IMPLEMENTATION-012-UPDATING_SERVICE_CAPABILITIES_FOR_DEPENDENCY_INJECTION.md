@@ -98,11 +98,51 @@ class TypeChecker:
             return None
 
         # Extract variable (handle $this->var and $var patterns)
-        var_part = line[arrow_pos - 20:arrow_pos].strip()
+        # Improved implementation: Parse backward from arrow_pos to find the variable
+        # Handle: $var, $this->var, $obj->method()->var, etc.
 
-        # Match variable patterns
-        match = re.search(r'\$?(\w+)$', var_part)
-        return match.group(1) if match else None
+        # Find the start of the variable expression
+        var_start = arrow_pos
+        paren_depth = 0
+        brace_depth = 0
+
+        # Go backward, tracking parentheses and braces
+        for i in range(arrow_pos - 1, -1, -1):
+            char = line[i]
+
+            if char == ')':
+                paren_depth += 1
+            elif char == '(':
+                paren_depth -= 1
+            elif char == '}':
+                brace_depth += 1
+            elif char == '{':
+                brace_depth -= 1
+            elif paren_depth == 0 and brace_depth == 0:
+                # Check for variable start patterns
+                if char in ['$', 'a-z', 'A-Z', '0-9', '_'] or (char == '>' and i > 0 and line[i-1] == '-'):
+                    var_start = i
+                elif not (char in ['$', 'a-z', 'A-Z', '0-9', '_', '>', '-']):
+                    # Hit a non-variable character, stop
+                    break
+
+        var_expression = line[var_start:arrow_pos].strip()
+
+        # Extract the main variable name (handle method chains)
+        # $this->container->get() -> 'container'
+        # $container->get() -> 'container'
+        # $this->getContainer()->get() -> 'getContainer()'
+
+        # Simple approach: take the last identifier before any method call
+        parts = re.split(r'->', var_expression)
+        if parts:
+            # Get the last part and extract variable name
+            last_part = parts[-1]
+            var_match = re.search(r'^(\w+)', last_part.strip())
+            if var_match:
+                return var_match.group(1)
+
+        return None
 
     async def _query_variable_type(self, doc, line: str, position: Position) -> str | None:
         """Query Phpactor for variable type at position."""

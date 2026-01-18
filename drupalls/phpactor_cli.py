@@ -2,28 +2,27 @@
 Wrapper for accessing bundled Phpactor CLI.
 """
 
-import os
 import subprocess
-import sys
 from pathlib import Path
+
 
 class PhpactorCLI:
     """Wrapper for bundled Phpactor CLI."""
 
-    def __init__(self, project_root: Path | None = None):
+    def __init__(self, drupalls_root: Path | None = None):
         """Initialize Phpactor CLI wrapper.
 
         Args:
             project_root: Root directory of the DrupalLS project.
                         If None, auto-detects from this file's location.
         """
-        if project_root is None:
+        if drupalls_root is None:
             # Auto-detect project root (assuming this file is in drupalls/)
             current_file = Path(__file__).resolve()
-            project_root = current_file.parent.parent
+            drupalls_root = current_file.parent.parent
 
-        self.project_root = project_root
-        self.phpactor_dir = project_root / "phpactor"
+        self.project_root = drupalls_root
+        self.phpactor_dir = drupalls_root / "phpactor"
         self.phpactor_bin = self.phpactor_dir / "bin" / "phpactor"
 
         # Check if setup is needed
@@ -41,18 +40,20 @@ class PhpactorCLI:
         vendor_dir = self.phpactor_dir / "vendor"
         if not vendor_dir.exists():
             raise RuntimeError(
-                f"Phpactor dependencies not installed. "
+                "Phpactor dependencies not installed. "
                 "Run setup script: drupalls-setup-phpactor"
             )
 
-    def run_command(self, args: list[str], cwd: Path | None = None,
-                   timeout: int = 30) -> subprocess.CompletedProcess:
+    def run_command(
+        self, args: list[str], cwd: Path | None = None, timeout: int = 30, input: str | None = None
+    ) -> subprocess.CompletedProcess:
         """Run a Phpactor command.
 
         Args:
             args: Command arguments (without 'phpactor')
             cwd: Working directory for command
             timeout: Command timeout in seconds
+            input: Input string to pass to stdin
 
         Returns:
             CompletedProcess instance
@@ -77,13 +78,15 @@ class PhpactorCLI:
                 capture_output=True,
                 text=True,
                 timeout=timeout,
-                check=False  # Don't raise on non-zero exit codes
+                check=False,  # Don't raise on non-zero exit codes
+                input=input
             )
         except subprocess.TimeoutExpired as e:
             raise subprocess.TimeoutExpired(cmd, timeout, e.stdout, e.stderr)
 
-    def rpc_command(self, action: str, parameters: dict,
-                    working_dir: Path | None = None) -> dict:
+    def rpc_command(
+        self, action: str, parameters: dict, working_dir: Path | None = None
+    ) -> dict:
         """Execute an RPC command.
 
         Args:
@@ -99,29 +102,23 @@ class PhpactorCLI:
         """
         import json
 
-        rpc_data = {
-            "action": action,
-            "parameters": parameters
-        }
+        rpc_data = {"action": action, "parameters": parameters}
 
         # Run RPC command with working directory override
         args = ["rpc", "--working-dir", str(working_dir or self.project_root)]
         result = self.run_command(args, input=json.dumps(rpc_data))
 
         if result.returncode != 0:
-            raise RuntimeError(
-                f"Phpactor RPC command failed: {result.stderr.strip()}"
-            )
+            raise RuntimeError(f"Phpactor RPC command failed: {result.stderr.strip()}")
 
         try:
             return json.loads(result.stdout)
         except json.JSONDecodeError as e:
-            raise RuntimeError(
-                f"Invalid JSON response from Phpactor: {e}"
-            ) from e
+            raise RuntimeError(f"Invalid JSON response from Phpactor: {e}") from e
 
-    def get_type_at_offset(self, file_path: Path, offset: int,
-                          working_dir: Path | None = None) -> str | None:
+    async def get_type_at_offset(
+        self, file_path: Path, offset: int, working_dir: Path | None = None
+    ) -> str | None:
         """Get type information at file offset.
 
         Args:
@@ -135,18 +132,20 @@ class PhpactorCLI:
         try:
             response = self.rpc_command(
                 "type_at_offset",
-                {
-                    "source_path": str(file_path),
-                    "offset": offset
-                },
-                working_dir=working_dir
+                {"source_path": str(file_path), "offset": offset},
+                working_dir=working_dir,
             )
             return response.get("type")
         except Exception:
             return None
 
-    def get_type_at_position(self, file_path: Path, line: int, character: int,
-                           working_dir: Path | None = None) -> str | None:
+    async def get_type_at_position(
+        self,
+        file_path: Path,
+        line: int,
+        character: int,
+        working_dir: Path | None = None,
+    ) -> str | None:
         """Get type information at line/character position.
 
         Args:
@@ -160,7 +159,7 @@ class PhpactorCLI:
         """
         # Convert position to byte offset
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             lines = content.splitlines()
