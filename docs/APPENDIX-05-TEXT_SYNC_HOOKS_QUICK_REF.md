@@ -481,7 +481,7 @@ async def _on_save(self, params):
 
 ## See Also
 
-- **Full Guide**: `docs/APPENDIX-12-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md`
+- **Full Guide**: `docs/IMPLEMENTATION-007-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md`
 - **Architecture**: `docs/05-TEXT_SYNC_ARCHITECTURE.md`
 - **TextSyncManager**: `drupalls/lsp/text_sync_manager.py`
 - **Cache Base**: `drupalls/workspace/cache.py`

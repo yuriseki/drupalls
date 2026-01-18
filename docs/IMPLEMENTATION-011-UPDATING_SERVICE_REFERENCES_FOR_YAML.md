@@ -307,5 +307,5 @@ The change is minimal but enables a complete "Find All References" experience ac
 ## References
 
 - LSP Specification: `textDocument/references`
-- Related: `docs/APPENDIX-15-IMPLEMENTING_SERVICE_REFERENCES.md`
-- Service Definition: `docs/APPENDIX-07-SERVICE_CLASS_DEFINITION_GUIDE.md`
+- Related: `docs/IMPLEMENTATION-010-IMPLEMENTING_SERVICE_REFERENCES.md`
+- Service Definition: `docs/IMPLEMENTATION-004-SERVICE_CLASS_DEFINITION_GUIDE.md`

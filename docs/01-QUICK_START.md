@@ -489,7 +489,7 @@ capabilities = {
 2. **Explore Appendices**:
    - `APPENDIX-01-DEVELOPMENT_GUIDE.md` - Complete LSP reference (1400+ lines)
    - `APPENDIX-03-CACHE_USAGE.md` - How to use WorkspaceCache API
-   - `APPENDIX-06-COMPLETION_WITH_CACHE.md` - Building completion features
+    - `IMPLEMENTATION-003-COMPLETION_WITH_CACHE.md` - Building completion features
 
 3. **Implement New Features**:
    - Add hooks support (completion, hover, definition)

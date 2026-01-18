@@ -350,4 +350,4 @@ This implementation adds the missing `textDocument/references` feature for Drupa
 - ✅ **References**: Find all service usages ← **NEW**
 
 The implementation follows the existing capability plugin architecture and integrates seamlessly with the ServicesCache for efficient searching across the codebase.</content>
-<parameter name="filePath">docs/APPENDIX-15-IMPLEMENTING_SERVICE_REFERENCES.md
+<parameter name="filePath">docs/IMPLEMENTATION-010-IMPLEMENTING_SERVICE_REFERENCES.md

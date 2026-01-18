@@ -158,31 +158,42 @@ These are **numbered sequentially** and should be read in order for foundational
   - `03-CAPABILITY_PLUGIN_ARCHITECTURE.md` - Capability plugin system design
   - `04-STORAGE_STRATEGY.md` - In-memory caching rationale
 
-#### **Appendices (APPENDIX-01 to APPENDIX-99): Reference & Implementation**
+#### **Appendices (APPENDIX-01 to APPENDIX-99): Reference Only**
 These are **numbered with APPENDIX prefix** and consulted as needed:
 
-- **Purpose**: Detailed reference, implementation guides, specific techniques
+- **Purpose**: Reference materials, lookup tables, API documentation
 - **Reading Order**: Non-linear, on-demand (reference when needed)
-- **Content Type**: API documentation, step-by-step guides, best practices, lookup tables
-- **Target**: Developers implementing specific features or looking up details
+- **Content Type**: Comprehensive references, quick lookups, API docs
+- **Target**: Developers looking up information or understanding existing systems
 - **Examples**:
   - `APPENDIX-01-DEVELOPMENT_GUIDE.md` - Comprehensive LSP reference (1400+ lines)
   - `APPENDIX-02-LSP_FEATURES_REFERENCE.md` - Quick lookup table
   - `APPENDIX-03-CACHE_USAGE.md` - API usage guide
-  - `APPENDIX-06-COMPLETION_WITH_CACHE.md` - Step-by-step implementation guide
+
+#### **Implementation Guides (IMPLEMENTATION-001 to IMPLEMENTATION-999): Step-by-Step Guides**
+These are **numbered with IMPLEMENTATION prefix** and follow implementation sequence:
+
+- **Purpose**: Detailed implementation guides, tutorials, step-by-step instructions
+- **Reading Order**: Sequential by implementation order (001, 002, 003...)
+- **Content Type**: How-to guides, complete code examples, testing approaches
+- **Target**: Developers implementing specific features in order
+- **Examples**:
+  - `IMPLEMENTATION-001-DRUPAL_ROOT_DETECTION.md` - Finding Drupal project root
+  - `IMPLEMENTATION-002-FILE_PATH_BEST_PRACTICES.md` - Working with file paths
+  - `IMPLEMENTATION-003-COMPLETION_WITH_CACHE.md` - Building completion features
 
 #### **Classification Criteria**
 
-Use these criteria to determine if a document should be core or appendix:
+Use these criteria to determine document classification:
 
-| Criteria | Core (01-04) | Appendix (01-99) |
-|----------|-------------|------------------|
-| **Purpose** | Architectural understanding | Implementation details |
-| **Length** | Concise (< 1000 lines) | Can be very long (1000+ lines) |
-| **Usage** | Read once, foundational | Reference repeatedly |
-| **Content** | "What and Why" | "How" |
-| **Dependencies** | Standalone, sequential | May reference core docs |
-| **Examples** | Design patterns, architecture | API docs, step-by-step guides |
+| Criteria | Core (01-99) | Appendices (01-99) | Implementation (001-999) |
+|----------|-------------|-------------------|--------------------------|
+| **Purpose** | Architectural understanding | Reference/API docs | Implementation details |
+| **Length** | Concise (< 1000 lines) | Can be very long | Can be very long |
+| **Usage** | Read once, foundational | Reference repeatedly | Read in sequence |
+| **Content** | "What and Why" | "What and How" | "How" |
+| **Dependencies** | Standalone, sequential | May reference core | References core + appendices |
+| **Examples** | Design patterns, architecture | API docs, lookup tables | Step-by-step guides |
 
 #### **Progressive Learning Path**
 
@@ -191,23 +202,30 @@ Start Here ↓
 01-QUICK_START.md (Architecture Overview)
     ↓
 02-WORKSPACE_CACHE_ARCHITECTURE.md (Cache Design)
-03-CAPABILITY_PLUGIN_ARCHITECTURE.md (Capability Design)  
+03-CAPABILITY_PLUGIN_ARCHITECTURE.md (Capability Design)
 04-STORAGE_STRATEGY.md (Storage Decisions)
+05-TEXT_SYNC_ARCHITECTURE.md (File Synchronization)
     ↓
 Now you understand the architecture!
     ↓
 Reference Appendices As Needed:
 APPENDIX-01 (Full LSP Guide)
 APPENDIX-03 (Cache API)
-APPENDIX-06 (Build Completion Feature)
+etc.
+    ↓
+Follow Implementation Sequence:
+IMPLEMENTATION-001 (Drupal Root Detection)
+IMPLEMENTATION-002 (File Path Best Practices)
+IMPLEMENTATION-003 (Completion with Cache)
 etc.
 ```
 
 ### File Naming Convention
 
 - **Core docs**: `NN-UPPERCASE_WITH_UNDERSCORES.md` (e.g., `03-CAPABILITY_PLUGIN_ARCHITECTURE.md`)
-- **Appendices**: `APPENDIX-NN-UPPERCASE_WITH_UNDERSCORES.md` (e.g., `APPENDIX-06-COMPLETION_WITH_CACHE.md`)
-- **Numbering**: Use zero-padded 2-digit numbers (01, 02, ... 99)
+- **Appendices**: `APPENDIX-NN-UPPERCASE_WITH_UNDERSCORES.md` (e.g., `APPENDIX-03-CACHE_USAGE.md`)
+- **Implementation guides**: `IMPLEMENTATION-NNN-UPPERCASE_WITH_UNDERSCORES.md` (e.g., `IMPLEMENTATION-001-DRUPAL_ROOT_DETECTION.md`)
+- **Numbering**: Use zero-padded 2-digit numbers for appendices (01, 02, ... 99), 3-digit for implementations (001, 002, ... 999)
 - **Location**: Place all documentation in `docs/` folder
 - **Naming**: Use descriptive names that clearly indicate content
 
@@ -273,22 +291,33 @@ CapabilityManager
 
 ## Existing Documentation (Read These First!)
 
-### Architecture Documentation
+### Architecture Documentation (Core)
+- `docs/01-QUICK_START.md` - Entry point with architecture overview
 - `docs/02-WORKSPACE_CACHE_ARCHITECTURE.md` - How caching system works
 - `docs/03-CAPABILITY_PLUGIN_ARCHITECTURE.md` - How capability plugins work
 - `docs/04-STORAGE_STRATEGY.md` - Why in-memory vs SQLite
+- `docs/05-TEXT_SYNC_ARCHITECTURE.md` - File synchronization design
 
-### Implementation Guides
-- `docs/APPENDIX-06-COMPLETION_WITH_CACHE.md` - Building completion features
-- `docs/APPENDIX-07-SERVICE_CLASS_DEFINITION_GUIDE.md` - Go-to-definition implementation
-- `docs/APPENDIX-04-DRUPAL_ROOT_DETECTION.md` - Finding Drupal project root
-- `docs/APPENDIX-05-FILE_PATH_BEST_PRACTICES.md` - Working with file paths
-
-### Reference Documentation
+### Reference Documentation (Appendices)
 - `docs/APPENDIX-01-DEVELOPMENT_GUIDE.md` - Complete LSP feature reference (1400+ lines)
 - `docs/APPENDIX-02-LSP_FEATURES_REFERENCE.md` - Quick lookup table of all LSP features
 - `docs/APPENDIX-03-CACHE_USAGE.md` - How to use WorkspaceCache API
-- `docs/APPENDIX-09-QUICK_REFERENCE_CACHE.md` - Cache quick reference
+- `docs/APPENDIX-04-QUICK_REFERENCE_CACHE.md` - Cache quick reference
+- `docs/APPENDIX-05-TEXT_SYNC_HOOKS_QUICK_REF.md` - Text sync hooks reference
+
+### Implementation Guides
+- `docs/IMPLEMENTATION-001-DRUPAL_ROOT_DETECTION.md` - Finding Drupal project root
+- `docs/IMPLEMENTATION-002-FILE_PATH_BEST_PRACTICES.md` - Working with file paths
+- `docs/IMPLEMENTATION-003-COMPLETION_WITH_CACHE.md` - Building completion features
+- `docs/IMPLEMENTATION-004-SERVICE_CLASS_DEFINITION_GUIDE.md` - Go-to-definition implementation
+- `docs/IMPLEMENTATION-005-CUSTOM_SERVER_ATTRIBUTES.md` - Custom server attributes setup
+- `docs/IMPLEMENTATION-006-SERVICE_CLASS_FILE_PATH.md` - Service class file path handling
+- `docs/IMPLEMENTATION-007-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md` - Cache self-management
+- `docs/IMPLEMENTATION-008-IMPLEMENTING_TEXT_SYNC_MANAGER.md` - Text synchronization
+- `docs/IMPLEMENTATION-009-IMPLEMENTING_CACHE_HOOKS_SERVICES.md` - Cache hooks for services
+- `docs/IMPLEMENTATION-010-IMPLEMENTING_SERVICE_REFERENCES.md` - Service references feature
+- `docs/IMPLEMENTATION-011-UPDATING_SERVICE_REFERENCES_FOR_YAML.md` - YAML support for references
+- `docs/IMPLEMENTATION-012-UPDATING_SERVICE_CAPABILITIES_FOR_DEPENDENCY_INJECTION.md` - DI with type checking
 
 ### Project Overview
 - `README.md` - Project introduction, setup instructions
@@ -409,7 +438,7 @@ When documenting a feature, answer these questions:
 - Capability plugin architecture
 
 ### In Progress 🔄
-- Service definition (YAML → PHP class) - documented in `docs/APPENDIX-07-SERVICE_CLASS_DEFINITION_GUIDE.md`
+- Service definition (YAML → PHP class) - documented in `docs/IMPLEMENTATION-004-SERVICE_CLASS_DEFINITION_GUIDE.md`
 - Hook completion and hover
 - Config schema support
 - Performance optimization
@@ -461,7 +490,7 @@ When asked to document a feature:
 - [ ] Provide complete code examples
 - [ ] Document edge cases and testing
 - [ ] Add references to LSP spec and Drupal docs
-- [ ] Place in `docs/` folder with descriptive name
+- [ ] Place in `docs/` folder with appropriate naming: `IMPLEMENTATION-NNN-` for implementation guides, `APPENDIX-NN-` for reference docs
 
 ## Resources
 

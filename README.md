@@ -375,17 +375,22 @@ See [Architecture Documentation](docs/03-CAPABILITY_PLUGIN_ARCHITECTURE.md) for 
 
 ### Implementation Guides
 - [Cache Usage](docs/APPENDIX-03-CACHE_USAGE.md) - How to use WorkspaceCache API
-- [Drupal Root Detection](docs/APPENDIX-04-DRUPAL_ROOT_DETECTION.md) - Finding Drupal projects
-- [File Path Best Practices](docs/APPENDIX-05-FILE_PATH_BEST_PRACTICES.md) - Working with paths
-- [Completion with Cache](docs/APPENDIX-06-COMPLETION_WITH_CACHE.md) - Building completion features
-- [Service Class Definition Guide](docs/APPENDIX-07-SERVICE_CLASS_DEFINITION_GUIDE.md) - YAML to PHP navigation
-- [Custom Server Attributes](docs/APPENDIX-08-CUSTOM_SERVER_ATTRIBUTES.md) - Extending the server
-- [Cache Quick Reference](docs/APPENDIX-09-QUICK_REFERENCE_CACHE.md) - Quick cache API lookup
-- [Text Sync Hooks System](docs/APPENDIX-11-TEXT_SYNC_HOOKS.md) - React to document lifecycle events
-- [Text Sync Quick Reference](docs/APPENDIX-12-TEXT_SYNC_HOOKS_QUICK_REF.md) - Quick hooks API lookup
-- [Implementing TextSyncManager](docs/APPENDIX-13-IMPLEMENTING_TEXT_SYNC_MANAGER.md) - Build the text sync infrastructure
-- [Cache Self-Management Pattern](docs/APPENDIX-14-CACHE_SELF_MANAGEMENT_PATTERN.md) - How caches manage their own lifecycle
-- [**⚠️ Text Sync Important Update**](docs/APPENDIX-15-TEXT_SYNC_HOOKS_IMPORTANT_UPDATE.md) - **READ THIS** if working with text sync hooks
+- [Cache Quick Reference](docs/APPENDIX-04-QUICK_REFERENCE_CACHE.md) - Quick cache API lookup
+- [Text Sync Quick Reference](docs/APPENDIX-05-TEXT_SYNC_HOOKS_QUICK_REF.md) - Quick hooks API lookup
+
+#### Step-by-Step Implementation
+- [001: Drupal Root Detection](docs/IMPLEMENTATION-001-DRUPAL_ROOT_DETECTION.md) - Finding Drupal projects
+- [002: File Path Best Practices](docs/IMPLEMENTATION-002-FILE_PATH_BEST_PRACTICES.md) - Working with paths
+- [003: Completion with Cache](docs/IMPLEMENTATION-003-COMPLETION_WITH_CACHE.md) - Building completion features
+- [004: Service Class Definition Guide](docs/IMPLEMENTATION-004-SERVICE_CLASS_DEFINITION_GUIDE.md) - YAML to PHP navigation
+- [005: Custom Server Attributes](docs/IMPLEMENTATION-005-CUSTOM_SERVER_ATTRIBUTES.md) - Extending the server
+- [006: Service Class File Path](docs/IMPLEMENTATION-006-SERVICE_CLASS_FILE_PATH.md) - Service file path handling
+- [007: Cache Self-Management](docs/IMPLEMENTATION-007-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md) - Cache lifecycle management
+- [008: Text Sync Manager](docs/IMPLEMENTATION-008-IMPLEMENTING_TEXT_SYNC_MANAGER.md) - Text synchronization infrastructure
+- [009: Cache Hooks for Services](docs/IMPLEMENTATION-009-IMPLEMENTING_CACHE_HOOKS_SERVICES.md) - Service cache hooks
+- [010: Service References](docs/IMPLEMENTATION-010-IMPLEMENTING_SERVICE_REFERENCES.md) - Find all service usages
+- [011: YAML Service References](docs/IMPLEMENTATION-011-UPDATING_SERVICE_REFERENCES_FOR_YAML.md) - YAML file references
+- [012: Dependency Injection](docs/IMPLEMENTATION-012-UPDATING_SERVICE_CAPABILITIES_FOR_DEPENDENCY_INJECTION.md) - DI with type checking
 
 ### For Contributors
 - [AGENTS.md](AGENTS.md) - Project context for LLMs and documentation writers

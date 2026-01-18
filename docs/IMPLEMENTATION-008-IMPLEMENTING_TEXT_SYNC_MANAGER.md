@@ -25,8 +25,8 @@ Before implementing TextSyncManager, you should understand:
 **Related Reading**:
 
 - `docs/05-TEXT_SYNC_ARCHITECTURE.md` - Architecture overview
-- `docs/APPENDIX-11-TEXT_SYNC_HOOKS_QUICK_REF.md` - Quick reference for using hooks
-- `docs/APPENDIX-12-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md` - How caches use hooks
+- `docs/APPENDIX-05-TEXT_SYNC_HOOKS_QUICK_REF.md` - Quick reference for using hooks
+- `docs/IMPLEMENTATION-007-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md` - How caches use hooks
 - [LSP Text Sync Spec](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_synchronization)
 
 ## Architecture Overview
@@ -847,7 +847,7 @@ class ServicesCache:
         text_sync.add_on_save_hook(self._on_services_file_saved)
 ```
 
-See `docs/APPENDIX-12-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md` for details.
+See `docs/IMPLEMENTATION-007-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md` for details.
 
 ## Best Practices
 
@@ -911,8 +911,8 @@ After implementing TextSyncManager:
 ## References
 
 - **Architecture Overview**: `docs/05-TEXT_SYNC_ARCHITECTURE.md`
-- **Quick Reference**: `docs/APPENDIX-11-TEXT_SYNC_HOOKS_QUICK_REF.md`
-- **Cache Self-Management**: `docs/APPENDIX-12-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md`
+- **Quick Reference**: `docs/APPENDIX-05-TEXT_SYNC_HOOKS_QUICK_REF.md`
+- **Cache Self-Management**: `docs/IMPLEMENTATION-007-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md`
 - **Current Implementation**: `drupalls/lsp/text_sync_manager.py`
 - **LSP Spec**: [Text Synchronization](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_synchronization)
 

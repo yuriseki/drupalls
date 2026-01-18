@@ -379,8 +379,8 @@ async def _on_services_file_saved(self, params):
 
 ## See Also
 
-- **Implementation Guide**: `docs/APPENDIX-12-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md`
-- **Quick Reference**: `docs/APPENDIX-11-TEXT_SYNC_HOOKS_QUICK_REF.md`
+- **Implementation Guide**: `docs/IMPLEMENTATION-007-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md`
+- **Quick Reference**: `docs/APPENDIX-05-TEXT_SYNC_HOOKS_QUICK_REF.md`
 - **TextSyncManager**: `drupalls/lsp/text_sync_manager.py`
 - **Cache Base Classes**: `drupalls/workspace/cache.py`
 - **Services Cache**: `drupalls/workspace/services_cache.py`

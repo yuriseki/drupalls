@@ -646,10 +646,10 @@ async def test_yaml_navigation_uses_cached_path(tmp_path):
 
 ## References
 
-- **APPENDIX-07-SERVICE_CLASS_DEFINITION_GUIDE.md**: Full implementation guide for YAML-to-PHP navigation
+- **IMPLEMENTATION-004-SERVICE_CLASS_DEFINITION_GUIDE.md**: Full implementation guide for YAML-to-PHP navigation
 - **02-WORKSPACE_CACHE_ARCHITECTURE.md**: Cache architecture patterns
 - **Drupal PSR-4**: [PSR-4 Autoloading](https://www.drupal.org/docs/develop/coding-standards/psr-4-namespaces-and-autoloading-in-drupal-8)
-- **Performance Considerations**: APPENDIX-07 lines 533-585
+- **Performance Considerations**: IMPLEMENTATION-004 lines 533-585
 
 ## Summary
 

@@ -10,8 +10,8 @@ This guide walks through implementing text synchronization hooks in `ServicesCac
 
 Before implementing cache hooks, you should understand:
 
-- **TextSyncManager**: Provides hook registration API (from `docs/APPENDIX-13-IMPLEMENTING_TEXT_SYNC_MANAGER.md`)
-- **Cache Self-Management**: Why caches should manage themselves (from `docs/APPENDIX-12-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md`)
+- **TextSyncManager**: Provides hook registration API (from `docs/IMPLEMENTATION-008-IMPLEMENTING_TEXT_SYNC_MANAGER.md`)
+- **Cache Self-Management**: Why caches should manage themselves (from `docs/IMPLEMENTATION-007-CACHE_SELF_MANAGEMENT_WITH_HOOKS.md`)
 - **ServicesCache**: Current implementation (from `docs/APPENDIX-03-CACHE_USAGE.md`)
 
 ## Current Architecture Review
@@ -647,4 +647,4 @@ def register(self):
 4. **Update documentation** to reflect the new architecture
 
 This implementation enables DrupalLS to provide accurate, real-time service completion and references without requiring server restarts!</content>
-<parameter name="filePath">docs/APPENDIX-14-IMPLEMENTING_CACHE_HOOKS_SERVICES.md
+<parameter name="filePath">docs/IMPLEMENTATION-009-IMPLEMENTING_CACHE_HOOKS_SERVICES.md
