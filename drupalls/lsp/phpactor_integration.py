@@ -25,14 +25,16 @@ class TypeChecker:
         cache_key = (doc.uri, position.line, var_name)
 
         # Check cache first
+        var_type = '<missing>'
         if cache_key in self._type_cache:
             var_type = self._type_cache[cache_key]
-        else:
+
+        if cache_key not in self._type_cache or var_type == '<missing>':
             # Query type using CLI approach
             var_type = await self._query_variable_type(doc, line, position)
             self._type_cache[cache_key] = var_type
 
-        if not var_type:
+        if not var_type or var_type == '<missing>':
             # Fallback: assume 'container' variables are ContainerInterface
             if var_name == "container":
                 return True
@@ -41,7 +43,10 @@ class TypeChecker:
         return self._is_container_interface(var_type)
 
     async def _query_variable_type(
-        self, doc, line: str, position: Position
+        self,
+        doc,
+        line: str,
+        position: Position,
     ) -> str | None:
         """Query Phpactor CLI for variable type at position."""
         try:
@@ -105,11 +110,11 @@ class TypeChecker:
         offset = 0
         for i in range(position.line):
             if i < len(lines):
-                offset += len(lines[i]) + 1  # +1 for newline
+                offset += len(lines[i].rstrip('\n')) + 1  # +1 for newline, normalize by stripping
 
         # Add character offset within the line
         if position.line < len(lines):
-            offset += min(position.character, len(lines[position.line]))
+            offset += min(position.character, len(lines[position.line].rstrip('\n')))
 
         return offset
 
