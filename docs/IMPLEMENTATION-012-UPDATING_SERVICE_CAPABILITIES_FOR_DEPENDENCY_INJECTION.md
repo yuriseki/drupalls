@@ -1,5 +1,11 @@
 # Updating Service Capabilities for Dependency Injection with Type Checking
 
+> **⚠️ IMPORTANT: The approaches described in this document do not work reliably**
+>
+> Testing showed that Phpactor's type analysis returns `<missing>` and `<unknown>` for type information in most environments, including simple cases. This is due to autoloading issues, complex project structures, and Phpactor's limited ability to analyze PHP code in certain environments.
+>
+> **Recommended Alternative:** See `docs/IMPLEMENTATION-014-INTEGRATING_PHPactor_LSP_CLIENT.md` for a working approach using the developer's existing Phpactor LSP server.
+
 ## Overview
 
 This guide updates the service capabilities to handle dependency injection patterns where services are accessed via `->get()` on ContainerInterface variables, using proper type checking to avoid false positives.
@@ -306,9 +312,9 @@ class PhpactorRpcClient:
             result = subprocess.run(
                 ["phpactor", "rpc", "--working-dir", self.working_directory],
                 input=json.dumps({
-                    "action": "type_at_offset",
+                    "action": "offset_info",
                     "parameters": {
-                        "source_path": file_path,
+                        "source": file_path,
                         "offset": offset
                     }
                 }),
@@ -320,16 +326,11 @@ class PhpactorRpcClient:
 
             if result.returncode == 0:
                 response = json.loads(result.stdout)
-                return response.get("type")
-
-        except subprocess.TimeoutExpired:
-            # Timeout - Phpactor took too long
-            pass
+            return response.get("type")
         except Exception:
-            # Other errors (phpactor not found, etc.)
-            pass
-
-        return None
+            # Phpactor may return <missing> or fail if it can't analyze the code
+            # This can happen due to autoloading issues, missing dependencies, etc.
+            return None
 
     def query_type_at_position(self, file_path: str, line: int, character: int) -> str | None:
         """Get type information at line/character position."""
@@ -618,6 +619,25 @@ class TestController {
         await phpactor_client.stop()
 ```
 
+### Important Testing Note
+
+**During testing, `get_type_at_offset()` may return `None` if Phpactor cannot analyze the PHP code.** This can happen due to:
+
+- **Autoloading issues**: Phpactor can't resolve class dependencies
+- **Missing composer dependencies**: Symfony components not installed
+- **Working directory problems**: Incorrect project root configuration
+- **PHP environment issues**: PHP binary or extensions not available
+
+**Testing results showed:**
+- `offset_info` RPC action returns `<missing>` for type information
+- Even simple built-in types like `string` parameters return `<unknown>`
+- This indicates Phpactor's type analysis is not functioning in the test environment
+
+**The implementation gracefully handles this by:**
+1. Returning `None` when type information is unavailable
+2. Falling back to heuristic type detection in `can_handle()`
+3. Not failing the LSP server when Phpactor can't provide types
+
 ## Error Handling and Fallbacks
 
 ### Phpactor Unavailable
@@ -767,6 +787,24 @@ This implementation provides complete, production-ready type-aware service compl
 7. **Comprehensive testing**: Examples for both client types and full integration
 
 The result is precise service completion that only triggers for actual dependency injection usage, eliminating false positives from other `get()` methods while maintaining high performance and reliability.
+
+## Current Limitations
+
+**Type Analysis Reliability**: The current implementation depends on Phpactor's ability to analyze PHP code and resolve types. In some environments (especially complex Drupal projects), Phpactor may not be able to provide accurate type information due to:
+
+- Complex autoloading setups
+- Dynamic class loading
+- Missing or incomplete composer configurations
+- PHP environment configuration issues
+
+**Fallback Strategy**: When type analysis fails, the implementation falls back to basic heuristics, which may allow some false positives but ensures the LSP server remains functional.
+
+## Future Improvements
+
+1. **Enhanced Fallback Detection**: Improve heuristic type detection using PHPDoc comments, variable naming patterns, and Drupal conventions
+2. **Alternative Type Analysis**: Integrate with other PHP analysis tools (PHPStan, Psalm) for type information
+3. **Caching and Pre-analysis**: Pre-analyze project structure to improve type resolution accuracy
+4. **Configuration Options**: Allow users to configure type checking strictness vs. performance trade-offs
 
 ## References
 

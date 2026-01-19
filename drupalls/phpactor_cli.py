@@ -116,7 +116,7 @@ class PhpactorCLI:
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Invalid JSON response from Phpactor: {e}") from e
 
-    async def get_type_at_offset(
+    def get_type_at_offset(
         self, file_path: Path, offset: int, working_dir: Path | None = None
     ) -> str | None:
         """Get type information at file offset.
@@ -131,15 +131,15 @@ class PhpactorCLI:
         """
         try:
             response = self.rpc_command(
-                "type_at_offset",
-                {"source_path": str(file_path), "offset": offset},
+                "offset_info",
+                {"source": str(file_path), "offset": offset},
                 working_dir=working_dir,
             )
             return response.get("type")
         except Exception:
             return None
 
-    async def get_type_at_position(
+    def get_type_at_position(
         self,
         file_path: Path,
         line: int,

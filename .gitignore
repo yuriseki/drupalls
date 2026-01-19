@@ -59,3 +59,6 @@ Thumbs.db
 *.csv
 *.json
 *.sqlite3
+
+# Temp project files
+drafts

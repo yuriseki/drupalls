@@ -1,5 +1,11 @@
 # Implementing Phpactor CLI as a Dependency
 
+> **⚠️ IMPORTANT: The approaches described in this document do not work reliably**
+>
+> Testing showed that Phpactor's type analysis returns `<missing>` and `<unknown>` for type information in most environments, including simple cases. This is due to autoloading issues, complex project structures, and Phpactor's limited ability to analyze PHP code in certain environments.
+>
+> **Recommended Alternative:** See `docs/IMPLEMENTATION-014-INTEGRATING_PHPactor_LSP_CLIENT.md` for a working approach using the developer's existing Phpactor LSP server.
+
 ## Overview
 
 This guide implements Phpactor CLI as a bundled dependency in the DrupalLS project, making it transparent for developers to use type checking features without requiring separate Phpactor installation.
@@ -229,12 +235,9 @@ class PhpactorCLI:
         """
         try:
             response = self.rpc_command(
-                "type_at_offset",
-                {
-                    "source_path": str(file_path),
-                    "offset": offset
-                },
-                working_dir=working_dir
+                "offset_info",
+                {"source": str(file_path), "offset": offset},
+                working_dir=working_dir,
             )
             return response.get("type")
         except Exception:

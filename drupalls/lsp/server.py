@@ -1,22 +1,27 @@
 from pathlib import Path
 
 from lsprotocol.types import (
+    TEXT_DOCUMENT_COMPLETION,
+    TEXT_DOCUMENT_DEFINITION,
+    TEXT_DOCUMENT_DID_OPEN,
     TEXT_DOCUMENT_DID_SAVE,
+    TEXT_DOCUMENT_HOVER,
     TEXT_DOCUMENT_REFERENCES,
     CompletionList,
     CompletionParams,
     DefinitionParams,
+    DidOpenTextDocumentParams,
     DidSaveTextDocumentParams,
     HoverParams,
     LogMessageParams,
     MessageType,
     ReferenceParams,
+    ShowMessageParams,
 )
 
 from drupalls.lsp.capabilities.capabilities import CapabilityManager
 from drupalls.lsp.drupal_language_server import DrupalLanguageServer
 from drupalls.lsp.phpactor_integration import TypeChecker
-from drupalls.lsp.phpactor_rpc import PhpactorRpcClient
 from drupalls.lsp.text_sync_manager import TextSyncManager
 from drupalls.utils.find_files import find_drupal_root
 from drupalls.workspace.cache import WorkspaceCache
@@ -37,6 +42,7 @@ def create_server() -> DrupalLanguageServer:
     server.workspace_cache = None
     server.capability_manager = None
     server.text_sync_manager = None
+    server.type_checker = None
 
     @server.feature("initialize")
     async def initialize(ls: DrupalLanguageServer, params):
@@ -63,9 +69,8 @@ def create_server() -> DrupalLanguageServer:
             LogMessageParams(MessageType.Info, f"Drupal root detected: {drupal_root}")
         )
 
-        phpactor_client = PhpactorRpcClient(drupal_root)
-        type_checker = TypeChecker(phpactor_client)
-        server.type_checker = type_checker
+        # Initialize TypeChecker (CLI-based)
+        server.type_checker = TypeChecker()
 
         # Initialize TextSyncManager BEFORE capabilities
         # so capabilities can register hooks during their initialization.
@@ -84,24 +89,19 @@ def create_server() -> DrupalLanguageServer:
         ls.capability_manager = CapabilityManager(ls)
         ls.capability_manager.register_all()
 
-    # Register aggregated handlers
-    from lsprotocol.types import TEXT_DOCUMENT_COMPLETION
 
+    # Register aggregated handlers
     @server.feature(TEXT_DOCUMENT_COMPLETION)
     async def completion(ls: DrupalLanguageServer, params: CompletionParams):
         if ls.capability_manager:
             return await ls.capability_manager.handle_completion(params)
         return CompletionList(is_incomplete=False, items=[])
 
-    from lsprotocol.types import TEXT_DOCUMENT_HOVER
-
     @server.feature(TEXT_DOCUMENT_HOVER)
     async def hover(ls: DrupalLanguageServer, params: HoverParams):
         if ls.capability_manager:
             return await ls.capability_manager.handle_hover(params)
         return None
-
-    from lsprotocol.types import TEXT_DOCUMENT_DEFINITION
 
     @server.feature(TEXT_DOCUMENT_DEFINITION)
     async def definition(ls: DrupalLanguageServer, params: DefinitionParams):

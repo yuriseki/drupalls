@@ -356,6 +356,9 @@ CapabilityManager
 - `docs/IMPLEMENTATION-010-IMPLEMENTING_SERVICE_REFERENCES.md` - Service references feature
 - `docs/IMPLEMENTATION-011-UPDATING_SERVICE_REFERENCES_FOR_YAML.md` - YAML support for references
 - `docs/IMPLEMENTATION-012-UPDATING_SERVICE_CAPABILITIES_FOR_DEPENDENCY_INJECTION.md` - DI with type checking
+- `docs/IMPLEMENTATION-013-INTEGRATING_PHPactor_CLI_AS_DEPENDENCY.md` - Bundled Phpactor CLI approach
+- `docs/IMPLEMENTATION-014-INTEGRATING_PHPactor_LSP_CLIENT.md` - LSP client for Phpactor integration
+- `docs/IMPLEMENTATION-015-INTEGRATING_PHPactor_CLI_TYPE_CHECKING.md` - CLI-based type checking
 
 ### Project Overview
 - `README.md` - Project introduction, setup instructions
