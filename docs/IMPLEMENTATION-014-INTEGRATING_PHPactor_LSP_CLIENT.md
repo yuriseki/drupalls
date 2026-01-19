@@ -1,5 +1,10 @@
 # Integrating Phpactor LSP Client
 
+> **⚠️ IMPORTANT: The approaches described in this document do not work reliably**
+>
+> The approach of relying in Phpactor being execute in the IDE was not reliable, and is also too hacky as it was simulating the hover LSP capability and
+>some special character returned by Phpactor. So I decided to try the phpactoe CLI again on IMPLMEMENTATION-015, which ended up working.
+
 ## Overview
 
 This guide implements a working Phpactor integration by connecting to the developer's existing Phpactor LSP server that runs in their IDE (like VS Code, PhpStorm, or Neovim). This approach provides reliable type information using the standard LSP protocol.

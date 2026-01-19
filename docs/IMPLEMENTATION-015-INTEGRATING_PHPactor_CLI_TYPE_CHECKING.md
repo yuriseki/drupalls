@@ -183,6 +183,26 @@ class TypeChecker:
         return str(file_path.parent)
 ```
 
+### Step 1.1: Offset Calculation Normalization
+
+**Why this update?** The original `_position_to_offset` method assumed `doc.lines` never included newlines, but in some LSP implementations (like pygls), lines may include `\n`. This caused incorrect offsets, adding extra bytes per line. By normalizing with `rstrip('\n')`, we ensure consistent offset calculation regardless of how lines are stored, matching Phpactor's expected byte positions.
+
+```python
+    def _position_to_offset(self, lines: list[str], position: Position) -> int:
+        """Convert Position to byte offset in file."""
+        # Calculate offset up to the target line
+        offset = 0
+        for i in range(position.line):
+            if i < len(lines):
+                offset += len(lines[i].rstrip('\n')) + 1  # +1 for newline, normalize by stripping
+
+        # Add character offset within the line
+        if position.line < len(lines):
+            offset += min(position.character, len(lines[position.line].rstrip('\n')))
+
+        return offset
+```
+
 ### Step 2: Variable Position Finding Logic
 
 ```python

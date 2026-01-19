@@ -5,6 +5,9 @@
 > Testing showed that Phpactor's type analysis returns `<missing>` and `<unknown>` for type information in most environments, including simple cases. This is due to autoloading issues, complex project structures, and Phpactor's limited ability to analyze PHP code in certain environments.
 >
 > **Recommended Alternative:** See `docs/IMPLEMENTATION-014-INTEGRATING_PHPactor_LSP_CLIENT.md` for a working approach using the developer's existing Phpactor LSP server.
+>
+> As I later discovered in IMPLEMENTATION-015, the reason why it was not working is because of an error in the offset calculation.
+
 
 ## Overview
 
