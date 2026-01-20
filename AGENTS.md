@@ -263,6 +263,9 @@ Ideas for extending the feature.
 
 ## References
 Links to related docs, LSP spec, Drupal docs.
+
+## Next Steps
+Suggest logical next steps for the DrupalLS project.
 ```
 
 ### Code Examples Best Practices
@@ -371,9 +374,13 @@ CapabilityManager
 - `drupalls/lsp/server.py` - LSP server setup and initialization
 - `drupalls/lsp/capabilities/capabilities.py` - Capability plugin base classes
 - `drupalls/lsp/capabilities/services_capabilities.py` - Services capability implementations
+- `drupalls/lsp/phpactor_integration.py` - Integration with Phpactor CLI
 
 ### Tests (for understanding usage)
 - `tests/` - Test files show how components are used
+
+### Code drafts (code created by the LLM to prepare codeblocks)
+- `drafts/` - Here is a sandbox directory where all the code blocks proposed in the documentation and implementation markdown files need to be tested in order to make sure the logic and the approach are correct.
 
 ## Common Documentation Topics to Cover
 
