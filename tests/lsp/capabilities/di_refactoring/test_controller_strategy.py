@@ -45,6 +45,39 @@ class MyController extends ControllerBase {
 """
 
 
+@pytest.fixture
+def php_with_existing_constructor() -> str:
+    """PHP controller content with existing constructor."""
+    return """<?php
+
+namespace Drupal\\mymodule\\Controller;
+
+use Drupal\\Core\\Controller\\ControllerBase;
+use Symfony\\Component\\DependencyInjection\\ContainerInterface;
+use Drupal\\Core\\Config\\ConfigFactoryInterface;
+
+class MyController extends ControllerBase {
+
+  protected ConfigFactoryInterface $configFactory;
+
+  public function __construct(ConfigFactoryInterface $configFactory) {
+    $this->configFactory = $configFactory;
+  }
+
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('config.factory')
+    );
+  }
+
+  public function index() {
+    return [];
+  }
+
+}
+"""
+
+
 # ============================================================================
 # Tests for ControllerDIStrategy properties
 # ============================================================================
@@ -117,7 +150,7 @@ class TestControllerDIStrategyGenerateEdits:
         edits = strategy.generate_edits(context)
         descriptions = [e.description for e in edits]
         
-        assert "Add properties" in descriptions
+        assert "Add properties with docstrings" in descriptions
 
     def test_generate_edits_creates_constructor_edit(
         self, strategy: ControllerDIStrategy, basic_php_content: str
@@ -134,7 +167,7 @@ class TestControllerDIStrategyGenerateEdits:
         edits = strategy.generate_edits(context)
         descriptions = [e.description for e in edits]
         
-        assert "Add/modify constructor" in descriptions
+        assert "Add constructor" in descriptions
 
     def test_generate_edits_creates_create_method_edit(
         self, strategy: ControllerDIStrategy, basic_php_content: str
@@ -151,7 +184,7 @@ class TestControllerDIStrategyGenerateEdits:
         edits = strategy.generate_edits(context)
         descriptions = [e.description for e in edits]
         
-        assert "Add/modify create() method" in descriptions
+        assert "Add create() method" in descriptions
 
     def test_generate_edits_multiple_services(
         self, strategy: ControllerDIStrategy, basic_php_content: str
@@ -189,96 +222,182 @@ class TestControllerDIStrategyGenerateEdits:
 
 
 # ============================================================================
-# Tests for helper methods
+# Tests for merge functionality
 # ============================================================================
 
-class TestControllerDIStrategyHelpers:
-    """Tests for strategy helper methods."""
+class TestControllerDIStrategyMerge:
+    """Tests for merging with existing constructor/create."""
 
-    def test_find_use_insert_line(
+    def test_merge_constructor_with_existing(
+        self, strategy: ControllerDIStrategy, php_with_existing_constructor: str
+    ) -> None:
+        """Test that new services are merged into existing constructor."""
+        context = DIRefactoringContext(
+            file_uri="file:///test.php",
+            file_content=php_with_existing_constructor,
+            class_line=9,
+            drupal_type="controller",
+            services_to_inject=["entity_type.manager"],
+        )
+        
+        edits = strategy.generate_edits(context)
+        descriptions = [e.description for e in edits]
+        
+        # Should merge, not add new
+        assert "Merge constructor with new services" in descriptions
+
+    def test_merge_create_method_with_existing(
+        self, strategy: ControllerDIStrategy, php_with_existing_constructor: str
+    ) -> None:
+        """Test that new container gets are merged into existing create()."""
+        context = DIRefactoringContext(
+            file_uri="file:///test.php",
+            file_content=php_with_existing_constructor,
+            class_line=9,
+            drupal_type="controller",
+            services_to_inject=["entity_type.manager"],
+        )
+        
+        edits = strategy.generate_edits(context)
+        descriptions = [e.description for e in edits]
+        
+        # Should merge, not add new
+        assert "Merge create() with new container gets" in descriptions
+
+    def test_merged_constructor_contains_both_params(
+        self, strategy: ControllerDIStrategy, php_with_existing_constructor: str
+    ) -> None:
+        """Test that merged constructor contains existing and new params."""
+        context = DIRefactoringContext(
+            file_uri="file:///test.php",
+            file_content=php_with_existing_constructor,
+            class_line=9,
+            drupal_type="controller",
+            services_to_inject=["entity_type.manager"],
+        )
+        
+        edits = strategy.generate_edits(context)
+        
+        constructor_edit = next(
+            (e for e in edits if "constructor" in e.description.lower()), None
+        )
+        assert constructor_edit is not None
+        
+        new_text = constructor_edit.text_edit.new_text
+        assert "$configFactory" in new_text
+        assert "EntityTypeManagerInterface" in new_text or "$entityTypeManager" in new_text
+
+    def test_merged_create_contains_both_gets(
+        self, strategy: ControllerDIStrategy, php_with_existing_constructor: str
+    ) -> None:
+        """Test that merged create() contains existing and new container gets."""
+        context = DIRefactoringContext(
+            file_uri="file:///test.php",
+            file_content=php_with_existing_constructor,
+            class_line=9,
+            drupal_type="controller",
+            services_to_inject=["entity_type.manager"],
+        )
+        
+        edits = strategy.generate_edits(context)
+        
+        create_edit = next(
+            (e for e in edits if "create" in e.description.lower()), None
+        )
+        assert create_edit is not None
+        
+        new_text = create_edit.text_edit.new_text
+        assert "config.factory" in new_text
+        assert "entity_type.manager" in new_text
+
+    def test_skips_already_injected_service(
+        self, strategy: ControllerDIStrategy, php_with_existing_constructor: str
+    ) -> None:
+        """Test that already injected services are skipped."""
+        context = DIRefactoringContext(
+            file_uri="file:///test.php",
+            file_content=php_with_existing_constructor,
+            class_line=9,
+            drupal_type="controller",
+            services_to_inject=["config.factory"],  # Already exists
+        )
+        
+        edits = strategy.generate_edits(context)
+        
+        # No edits needed as service already exists
+        assert len(edits) == 0
+
+
+# ============================================================================
+# Tests for class_info population
+# ============================================================================
+
+class TestControllerDIStrategyClassInfo:
+    """Tests for class_info population in context."""
+
+    def test_class_info_set_after_generate_edits(
         self, strategy: ControllerDIStrategy, basic_php_content: str
     ) -> None:
-        """Test finding the line to insert use statements."""
+        """Test that class_info is set after generate_edits."""
         context = DIRefactoringContext(
             file_uri="file:///test.php",
             file_content=basic_php_content,
             class_line=6,
             drupal_type="controller",
+            services_to_inject=["entity_type.manager"],
         )
         
-        line = strategy._find_use_insert_line(context)
+        strategy.generate_edits(context)
         
-        # Should be at the class line (before it)
-        assert line == 6
+        assert context.class_info is not None
 
-    def test_generate_use_statements(
-        self, strategy: ControllerDIStrategy
+    def test_class_info_has_use_statements(
+        self, strategy: ControllerDIStrategy, php_with_existing_constructor: str
     ) -> None:
-        """Test generating use statements."""
-        from drupalls.lsp.capabilities.di_refactoring.service_interfaces import (
-            get_service_interface,
+        """Test that class_info contains use statements."""
+        context = DIRefactoringContext(
+            file_uri="file:///test.php",
+            file_content=php_with_existing_constructor,
+            class_line=9,
+            drupal_type="controller",
+            services_to_inject=["entity_type.manager"],
         )
         
-        services_info = [
-            ("entity_type.manager", get_service_interface("entity_type.manager")),
-            ("messenger", get_service_interface("messenger")),
-        ]
+        strategy.generate_edits(context)
         
-        result = strategy._generate_use_statements(services_info)
-        
-        assert "EntityTypeManagerInterface" in result
-        assert "MessengerInterface" in result
-        assert "ContainerInterface" in result
+        assert context.class_info is not None
+        assert len(context.class_info.use_statements) > 0
 
-    def test_generate_properties(
-        self, strategy: ControllerDIStrategy
+    def test_class_info_has_constructor(
+        self, strategy: ControllerDIStrategy, php_with_existing_constructor: str
     ) -> None:
-        """Test generating property declarations."""
-        from drupalls.lsp.capabilities.di_refactoring.service_interfaces import (
-            get_service_interface,
+        """Test that class_info contains constructor info."""
+        context = DIRefactoringContext(
+            file_uri="file:///test.php",
+            file_content=php_with_existing_constructor,
+            class_line=9,
+            drupal_type="controller",
+            services_to_inject=["entity_type.manager"],
         )
         
-        services_info = [
-            ("entity_type.manager", get_service_interface("entity_type.manager")),
-        ]
+        strategy.generate_edits(context)
         
-        result = strategy._generate_properties(services_info)
-        
-        assert "protected EntityTypeManagerInterface $entityTypeManager" in result
+        assert context.class_info is not None
+        assert context.class_info.constructor is not None
 
-    def test_generate_constructor(
-        self, strategy: ControllerDIStrategy
+    def test_class_info_has_create_method(
+        self, strategy: ControllerDIStrategy, php_with_existing_constructor: str
     ) -> None:
-        """Test generating constructor."""
-        from drupalls.lsp.capabilities.di_refactoring.service_interfaces import (
-            get_service_interface,
+        """Test that class_info contains create method info."""
+        context = DIRefactoringContext(
+            file_uri="file:///test.php",
+            file_content=php_with_existing_constructor,
+            class_line=9,
+            drupal_type="controller",
+            services_to_inject=["entity_type.manager"],
         )
         
-        services_info = [
-            ("entity_type.manager", get_service_interface("entity_type.manager")),
-        ]
+        strategy.generate_edits(context)
         
-        result = strategy._generate_constructor(services_info)
-        
-        assert "__construct" in result
-        assert "EntityTypeManagerInterface $entityTypeManager" in result
-        assert "$this->entityTypeManager = $entityTypeManager" in result
-
-    def test_generate_create_method(
-        self, strategy: ControllerDIStrategy
-    ) -> None:
-        """Test generating create() method."""
-        from drupalls.lsp.capabilities.di_refactoring.service_interfaces import (
-            get_service_interface,
-        )
-        
-        services_info = [
-            ("entity_type.manager", get_service_interface("entity_type.manager")),
-        ]
-        
-        result = strategy._generate_create_method(services_info)
-        
-        assert "public static function create" in result
-        assert "ContainerInterface $container" in result
-        assert "$container->get('entity_type.manager')" in result
-        assert "return new static(" in result
+        assert context.class_info is not None
+        assert context.class_info.create_method is not None

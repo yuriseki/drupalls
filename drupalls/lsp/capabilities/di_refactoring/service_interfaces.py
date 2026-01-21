@@ -110,6 +110,42 @@ SERVICE_INTERFACES: dict[str, ServiceInterfaceInfo] = {
         property_name="token",
         use_statement="use Drupal\\Core\\Utility\\Token;",
     ),
+    "renderer": ServiceInterfaceInfo(
+        interface_fqcn="Drupal\\Core\\Render\\RendererInterface",
+        interface_short="RendererInterface",
+        property_name="renderer",
+        use_statement="use Drupal\\Core\\Render\\RendererInterface;",
+    ),
+    "entity.repository": ServiceInterfaceInfo(
+        interface_fqcn="Drupal\\Core\\Entity\\EntityRepositoryInterface",
+        interface_short="EntityRepositoryInterface",
+        property_name="entityRepository",
+        use_statement="use Drupal\\Core\\Entity\\EntityRepositoryInterface;",
+    ),
+    "date.formatter": ServiceInterfaceInfo(
+        interface_fqcn="Drupal\\Core\\Datetime\\DateFormatterInterface",
+        interface_short="DateFormatterInterface",
+        property_name="dateFormatter",
+        use_statement="use Drupal\\Core\\Datetime\\DateFormatterInterface;",
+    ),
+    "entity.manager": ServiceInterfaceInfo(
+        interface_fqcn="Drupal\\Core\\Entity\\EntityManagerInterface",
+        interface_short="EntityManagerInterface",
+        property_name="entityManager",
+        use_statement="use Drupal\\Core\\Entity\\EntityManagerInterface;",
+    ),
+    "file_system": ServiceInterfaceInfo(
+        interface_fqcn="Drupal\\Core\\File\\FileSystemInterface",
+        interface_short="FileSystemInterface",
+        property_name="fileSystem",
+        use_statement="use Drupal\\Core\\File\\FileSystemInterface;",
+    ),
+    "path.alias_manager": ServiceInterfaceInfo(
+        interface_fqcn="Drupal\\path_alias\\AliasManagerInterface",
+        interface_short="AliasManagerInterface",
+        property_name="aliasManager",
+        use_statement="use Drupal\\path_alias\\AliasManagerInterface;",
+    ),
 }
 
 

@@ -7,9 +7,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from lsprotocol.types import TextEdit, Range, Position
+
+if TYPE_CHECKING:
+    from drupalls.lsp.capabilities.di_refactoring.php_class_analyzer import (
+        PhpClassInfo,
+    )
 
 
 @dataclass
@@ -21,6 +26,9 @@ class DIRefactoringContext:
     class_line: int
     drupal_type: str
     services_to_inject: list[str] = field(default_factory=list)
+
+    # Analyzed class info (set by strategy)
+    class_info: PhpClassInfo | None = None
 
 
 @dataclass
@@ -73,3 +81,16 @@ class DIStrategy(ABC):
     def _insert_at(self, line: int, character: int, text: str) -> TextEdit:
         """Create an insert edit at position."""
         return self._create_text_edit(line, character, line, character, text)
+
+    def _replace_lines(
+        self,
+        start_line: int,
+        end_line: int,
+        new_text: str,
+        lines: list[str],
+    ) -> TextEdit:
+        """Create a replace edit for a range of lines."""
+        end_char = len(lines[end_line]) if end_line < len(lines) else 0
+        return self._create_text_edit(
+            start_line, 0, end_line, end_char, new_text
+        )
