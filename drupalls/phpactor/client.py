@@ -227,14 +227,20 @@ class PhpactorClient:
             return None
 
     def _parse_cli_output(self, output: str) -> dict[str, str]:
-        """Parse phpactor offset:info CLI output into key-value pairs."""
+        """Parse phpactor offset:info CLI output into key-value pairs.
+        
+        Normalizes keys to snake_case for consistent access.
+        Example: "Symbol Type: class" -> {"symbol_type": "class"}
+        """
         lines = output.strip().split("\n")
         parsed: dict[str, str] = {}
 
         for line in lines:
             if ":" in line:
                 key, value = line.split(":", 1)
-                parsed[key.strip().lower()] = value.strip()
+                # Normalize key: lowercase and replace spaces with underscores
+                normalized_key = key.strip().lower().replace(" ", "_")
+                parsed[normalized_key] = value.strip()
 
         return parsed
 

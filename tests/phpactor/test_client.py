@@ -37,12 +37,14 @@ class TestTypeInfo:
             symbol_type="class",
             fqcn="Drupal\\Core\\Entity\\EntityTypeManager",
             offset=150,
+            class_type="Drupal\\Core\\Entity\\EntityTypeManager",
         )
 
         assert type_info.type_name == "EntityTypeManager"
         assert type_info.symbol_type == "class"
         assert type_info.fqcn == "Drupal\\Core\\Entity\\EntityTypeManager"
         assert type_info.offset == 150
+        assert type_info.class_type == "Drupal\\Core\\Entity\\EntityTypeManager"
 
     def test_creation_with_none_values(self):
         """Test creating TypeInfo with None values for optional fields."""
@@ -51,12 +53,14 @@ class TestTypeInfo:
             symbol_type=None,
             fqcn=None,
             offset=0,
+            class_type=None,
         )
 
         assert type_info.type_name is None
         assert type_info.symbol_type is None
         assert type_info.fqcn is None
         assert type_info.offset == 0
+        assert type_info.class_type is None
 
     def test_creation_with_mixed_values(self):
         """Test creating TypeInfo with some None and some populated values."""
@@ -65,6 +69,7 @@ class TestTypeInfo:
             symbol_type="variable",
             fqcn=None,
             offset=42,
+            class_type=None,
         )
 
         assert type_info.type_name == "string"
@@ -82,6 +87,7 @@ class TestTypeInfo:
                 symbol_type=sym_type,
                 fqcn=None,
                 offset=10,
+                class_type=None,
             )
             assert type_info.symbol_type == sym_type
 
@@ -92,6 +98,7 @@ class TestTypeInfo:
             symbol_type="class",
             fqcn="Test",
             offset=0,
+            class_type="Test",
         )
         assert type_info.offset == 0
 
@@ -103,6 +110,7 @@ class TestTypeInfo:
             symbol_type="class",
             fqcn="Test",
             offset=large_offset,
+            class_type="Test",
         )
         assert type_info.offset == large_offset
 
@@ -113,12 +121,14 @@ class TestTypeInfo:
             symbol_type="class",
             fqcn="Drupal\\Test",
             offset=100,
+            class_type="Drupal\\Test",
         )
         type_info2 = TypeInfo(
             type_name="Test",
             symbol_type="class",
             fqcn="Drupal\\Test",
             offset=100,
+            class_type="Drupal\\Test",
         )
         assert type_info1 == type_info2
 
@@ -129,12 +139,14 @@ class TestTypeInfo:
             symbol_type="class",
             fqcn="Drupal\\Test",
             offset=100,
+            class_type="Drupal\\Test",
         )
         type_info2 = TypeInfo(
             type_name="Test",
             symbol_type="class",
             fqcn="Drupal\\Test",
             offset=200,  # Different offset
+            class_type="Drupal\\Test",
         )
         assert type_info1 != type_info2
 
@@ -1051,7 +1063,7 @@ class TestPhpactorClientParseCliOutput:
         result = client._parse_cli_output(output)
 
         assert result["type"] == "EntityTypeManager"
-        assert result["symbol type"] == "class"
+        assert result["symbol_type"] == "class"  # Normalized to snake_case
         assert result["class"] == "Drupal\\Core\\Entity\\EntityTypeManager"
 
     def test_parse_cli_output_empty_string(self, client: PhpactorClient):
@@ -1087,13 +1099,13 @@ class TestPhpactorClientParseCliOutput:
         assert result["class"] == "Drupal\\Core\\Entity::EntityTypeManager"
 
     def test_parse_cli_output_lowercases_keys(self, client: PhpactorClient):
-        """Test that keys are lowercased."""
+        """Test that keys are lowercased and spaces replaced with underscores."""
         output = "TYPE: test\nSYMBOL TYPE: class\nCLASS: MyClass\n"
 
         result = client._parse_cli_output(output)
 
         assert "type" in result
-        assert "symbol type" in result
+        assert "symbol_type" in result  # Spaces replaced with underscores
         assert "class" in result
         assert "TYPE" not in result
 

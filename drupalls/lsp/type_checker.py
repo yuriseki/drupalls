@@ -85,10 +85,6 @@ class TypeChecker:
             var_type = await self._query_variable_type(doc, position)
             self._type_cache[cache_key] = var_type
 
-        # TODO: Remove these lines after finish debuguing.
-        var_type = await self._query_variable_type(doc, position)
-        self._type_cache[cache_key] = var_type
-
         if not var_type:
             # Fallback heuristics
             if var_name.lower() == "container":
@@ -98,14 +94,28 @@ class TypeChecker:
         return self._is_container_interface(var_type)
 
     async def _query_variable_type(self, doc, position: Position) -> str | None:
-        """Query Phpactor for variable type at position."""
+        """Query Phpactor for variable type at position.
+        
+        This method finds the variable before ->get() and queries its type.
+        For a line like `$a->get("service")`, we need to query the type of $a,
+        not the type at the cursor position (which might be inside the string).
+        """
         from pathlib import Path
 
         file_path = Path(doc.uri.replace("file://", ""))
-        offset = self._position_to_offset(doc.lines, position)
         working_dir = self._find_project_root(file_path)
+        
+        # Get the current line
+        line = doc.lines[position.line].rstrip('\n') if position.line < len(doc.lines) else ""
+        
+        # Find the variable position (before ->get()
+        var_offset = self._find_variable_offset_before_get(doc.lines, line, position)
+        
+        if var_offset is None:
+            # Fallback to cursor position
+            var_offset = self._position_to_offset(doc.lines, position)
 
-        type_info = await self.phpactor.offset_info(file_path, offset, working_dir)
+        type_info = await self.phpactor.offset_info(file_path, var_offset, working_dir)
         if type_info:
             if type_info.type_name and type_info.type_name != "<missing>":
                 var_type = type_info.type_name
@@ -115,66 +125,96 @@ class TypeChecker:
             var_type = None
 
         return var_type
+    
+    def _find_variable_offset_before_get(
+        self, lines: list[str], line: str, position: Position
+    ) -> int | None:
+        """
+        Find the byte offset of the variable before ->get() call.
+        
+        For a line like `$a->get("service")` with cursor inside the string,
+        we need to find the position of $a to query its type.
+        
+        Args:
+            lines: All document lines
+            line: Current line text
+            position: Cursor position
+            
+        Returns:
+            Byte offset of the variable, or None if not found
+        """
+        # Find ->get( before or at the cursor position
+        get_pos = line.rfind("->get(", 0, position.character + 1)
+        if get_pos == -1:
+            return None
+        
+        # Find the $ sign before ->get(
+        # We look for the variable pattern like $var or $this->var
+        arrow_pos = get_pos  # Position of '->' in '->get('
+        
+        # Search backward for the variable start ($)
+        dollar_pos = line.rfind("$", 0, arrow_pos)
+        if dollar_pos == -1:
+            return None
+        
+        # The variable starts at dollar_pos
+        # Calculate the byte offset for this position
+        offset = 0
+        for i in range(position.line):
+            if i < len(lines):
+                offset += len(lines[i].rstrip("\n")) + 1
+        
+        # Add the character position of the variable (after $)
+        # We want to point to a character within the variable name
+        # so Phpactor can identify it. Let's point to the char after $
+        var_name_start = dollar_pos + 1  # Skip the $
+        offset += var_name_start
+        
+        return offset
 
     def _extract_variable_from_get_call(
         self, line: str, position: Position
     ) -> str | None:
         """
         Extract variable name from ->get() call context.
+        
+        Examples:
+            $container->get('service') -> 'container'
+            $this->container->get('service') -> 'container'
+            $this->getContainer()->get('service') -> 'getContainer'
         """
         # Find ->get( before or at the cursor position
-        # Include the current character in case cursor is on the '('
         get_pos = line.rfind("->get(", 0, position.character + 1)
         if get_pos == -1:
             return None
 
-        # Find variable before ->
-        arrow_pos = line.rfind("->", 0, get_pos)
-
-        if arrow_pos == -1:
-            # Simple case: $var->get()
-            dollar_pos = line.rfind("$", 0, get_pos)
-            if dollar_pos == -1:
-                return None
-            var_start = dollar_pos
-            var_expression = line[var_start:get_pos]
-        else:
-            # Find the start of the variable expression
-            var_start = arrow_pos
-            paren_depth = 0
-            brace_depth = 0
-
-            # Go backward, tracking parentheses and braces
-            for i in range(arrow_pos - 1, -1, -1):
-                char = line[i]
-
-                if char == ")":
-                    paren_depth += 1
-                elif char == "}":
-                    brace_depth += 1
-                elif char == "{":
-                    brace_depth -= 1
-                elif paren_depth == 0 and brace_depth == 0:
-                    # Skip whitespace
-                    if char.isspace():
-                        continue
-                    # Check for variable start patterns
-                    if char in ["$", "a-z", "A-Z", "0-9", "_"] or (
-                        char == ">" and i > 0 and line[i - 1] == "-"
-                    ):
-                        var_start = i
-                    elif char not in ["$", "a-z", "A-Z", "0-9", "_", ">", "-"]:
-                        # Hit a non-variable character, stop
-                        break
-
-            var_expression = line[var_start:get_pos]
-
+        # Find the $ that starts the variable expression for THIS ->get() call
+        # We need to find the $ between any preceding ; or statement boundary and get_pos
+        
+        # Look for statement boundaries before get_pos
+        # Common boundaries: ; { } 
+        last_boundary = -1
+        for boundary_char in [';', '{', '}', '=']:
+            pos = line.rfind(boundary_char, 0, get_pos)
+            if pos > last_boundary:
+                last_boundary = pos
+        
+        # Find $ after the boundary (or from start if no boundary)
+        search_start = last_boundary + 1 if last_boundary >= 0 else 0
+        dollar_pos = line.find("$", search_start, get_pos)
+        
+        if dollar_pos == -1:
+            return None
+        
+        # Extract the variable expression from $ to ->get(
+        var_expression = line[dollar_pos:get_pos]
+        
         # Extract the main variable name (handle method chains)
         # $this->container->get() -> 'container'
         # $container->get() -> 'container'
-        # $this->getContainer()->get() -> 'getContainer()'
+        # $this->getContainer()->get() -> 'getContainer'
 
-        # Simple approach: take the last identifier before any method call
+        # Split by -> and take the last identifier
         parts = re.split(r"->", var_expression)
         # Remove empty parts
         parts = [p for p in parts if p.strip()]
