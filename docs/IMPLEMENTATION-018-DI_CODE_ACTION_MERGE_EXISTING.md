@@ -569,22 +569,25 @@ class PhpClassAnalyzer:
                     params.append((name, type_hint))
         
         # Find method body and end
+        opening_brace_line: int | None = None
         for i in range(start_line, len(lines)):
             line = lines[i]
-            
+
             if "{" in line:
                 brace_count += line.count("{")
                 if not in_body:
                     in_body = True
-            
+                    opening_brace_line = i
+
             if "}" in line:
                 brace_count -= line.count("}")
-            
+
             if in_body and brace_count == 0:
                 end_line = i
                 break
-            
-            if in_body:
+
+            # Only add lines after the opening brace line to body_lines
+            if in_body and opening_brace_line is not None and i > opening_brace_line:
                 body_lines.append(line)
         
         return ConstructorInfo(
@@ -607,24 +610,27 @@ class PhpClassAnalyzer:
         brace_count = 0
         end_line = start_line
         container_gets: list[str] = []
-        
+        found_open_brace = False
+
         for i in range(start_line, len(lines)):
             line = lines[i]
-            
+
             # Extract container->get calls
             for match in self.CONTAINER_GET_PATTERN.finditer(line):
                 container_gets.append(match.group(1))
-            
+
             if "{" in line:
                 brace_count += line.count("{")
-            
+                found_open_brace = True
+
             if "}" in line:
                 brace_count -= line.count("}")
-            
-            if brace_count > 0 and brace_count == line.count("}"):
+
+            # Method ends when braces are balanced after finding opening brace
+            if found_open_brace and brace_count == 0:
                 end_line = i
                 break
-        
+
         return CreateMethodInfo(
             start_line=start_line,
             end_line=end_line,
@@ -1507,6 +1513,144 @@ all_text_edits.sort(
     reverse=True,
 )
 ```
+
+## Bug Fixes Applied
+
+After the initial implementation, critical bugs were discovered during real-world testing. This section documents the bugs and their fixes.
+
+### Bug 1: `_parse_create_method()` Incorrect End Line Detection
+
+**Problem**: The `_parse_create_method()` was returning an incorrect `end_line` (159 instead of 55), causing the entire `revisionOverview()` method to be deleted when replacing the `create()` method.
+
+**Root Cause**: The brace counting logic was broken:
+
+```python
+# BEFORE (broken)
+if brace_count > 0 and brace_count == line.count("}"):
+    end_line = i
+    break
+```
+
+This condition doesn't correctly detect when a method ends. It was checking if the accumulated brace count equals the number of closing braces on the current line, which makes no logical sense for finding method boundaries.
+
+**Fix**: Properly track when braces become balanced:
+
+```python
+# AFTER (fixed)
+def _parse_create_method(
+    self,
+    lines: list[str],
+    start_line: int,
+    docblock_start: int | None,
+    docblock_end: int | None,
+) -> CreateMethodInfo:
+    """Parse create() method."""
+    brace_count = 0
+    end_line = start_line
+    container_gets: list[str] = []
+    found_open_brace = False  # NEW: Track when we've entered the method body
+
+    for i in range(start_line, len(lines)):
+        line = lines[i]
+
+        # Extract container->get calls
+        for match in self.CONTAINER_GET_PATTERN.finditer(line):
+            container_gets.append(match.group(1))
+
+        if "{" in line:
+            brace_count += line.count("{")
+            found_open_brace = True  # NEW: Mark that we're in the method
+
+        if "}" in line:
+            brace_count -= line.count("}")
+
+        # NEW: Method ends when braces are balanced after finding opening brace
+        if found_open_brace and brace_count == 0:
+            end_line = i
+            break
+
+    return CreateMethodInfo(
+        start_line=start_line,
+        end_line=end_line,
+        container_gets=container_gets,
+        docblock_start=docblock_start,
+        docblock_end=docblock_end,
+    )
+```
+
+### Bug 2: `_parse_constructor()` Including Parameter Lines in Body
+
+**Problem**: The `body_lines` for the constructor included the parameter continuation line, causing duplicate content in the merged constructor output.
+
+**Example of incorrect body_lines**:
+```
+body_lines:
+    0: '                              UserRevisionAccessCheck $accessCheck ) {'  # WRONG!
+    1: '    $this->dateFormatter = $date_formatter;'
+    2: '    $this->userRevisionAccessCheck = $accessCheck;'
+    3: '    $this->entityTypeManager();'
+```
+
+**Root Cause**: The code was adding lines to `body_lines` as soon as `in_body` became `True`, but `in_body` was set on the same line containing the opening brace `{`, which could also contain method parameters.
+
+**Fix**: Track the line where the opening brace appears and only include lines AFTER it:
+
+```python
+# AFTER (fixed)
+# Find method body and end
+opening_brace_line: int | None = None  # NEW: Track opening brace line
+for i in range(start_line, len(lines)):
+    line = lines[i]
+
+    if "{" in line:
+        brace_count += line.count("{")
+        if not in_body:
+            in_body = True
+            opening_brace_line = i  # NEW: Remember where the brace is
+
+    if "}" in line:
+        brace_count -= line.count("}")
+
+    if in_body and brace_count == 0:
+        end_line = i
+        break
+
+    # NEW: Only add lines AFTER the opening brace line to body_lines
+    if in_body and opening_brace_line is not None and i > opening_brace_line:
+        body_lines.append(line)
+```
+
+**Result after fix**:
+```
+body_lines:
+    0: '    $this->dateFormatter = $date_formatter;'
+    1: '    $this->userRevisionAccessCheck = $accessCheck;'
+    2: '    $this->entityTypeManager();'
+```
+
+### Validation Results
+
+After applying both fixes, the implementation was validated against real-world test files:
+
+| Metric | Before Fix | After Fix |
+|--------|------------|-----------|
+| Output file lines | 142 (broken) | 245 (correct) |
+| Constructor signatures | 2 (duplicate) | 1 (correct) |
+| `revisionOverview()` method | MISSING | Preserved |
+| `revisionShow()` method | Present | Preserved |
+| `revisionPageTitle()` method | Present | Preserved |
+
+**All 483 tests pass** after the fixes.
+
+### Key Lessons Learned
+
+1. **Always test with real-world files**: Unit tests with simple PHP snippets didn't catch these edge cases. Multi-line constructor parameters and complex method bodies exposed the bugs.
+
+2. **Brace counting needs careful logic**: The `found_open_brace` flag pattern is essential for methods where the opening brace may not be on its own line.
+
+3. **Body extraction must exclude header lines**: When extracting method bodies, carefully distinguish between the method signature lines (which may span multiple lines) and the actual body statements.
+
+4. **Test the analyzer independently**: Debug the `PhpClassAnalyzer` output before testing the full refactoring flow. Print/log the `start_line`, `end_line`, and `body_lines` values to verify correctness.
 
 ## References
 
