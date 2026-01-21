@@ -14,6 +14,7 @@ from lsprotocol.types import (
     Range,
     Position,
 )
+from pathlib import Path
 
 from drupalls.lsp.capabilities.capabilities import CodeActionCapability
 from drupalls.lsp.capabilities.di_refactoring.static_call_detector import (
@@ -41,6 +42,7 @@ class DIRefactoringCodeActionCapability(CodeActionCapability):
         self.strategies = {
             "controller": ControllerDIStrategy(),
             "form": ControllerDIStrategy(),  # Same pattern as controller
+            "service": __import__("drupalls.lsp.capabilities.di_refactoring.strategies.service_strategy", fromlist=["ServiceDIStrategy"]).ServiceDIStrategy(),
             "plugin": PluginDIStrategy(),
             "block": PluginDIStrategy(),
             "formatter": PluginDIStrategy(),
@@ -236,7 +238,33 @@ class DIRefactoringCodeActionCapability(CodeActionCapability):
             return WorkspaceEdit()
 
         # Select strategy
+        # If class_type is unknown or not "service", try to detect "service"
+        # by consulting the workspace services cache (reverse lookup by file).
         strategy = self.strategies.get(class_type)
+        if (not strategy or class_type == "controller") and hasattr(self.server, "workspace_cache"):
+            try:
+                wc = self.server.workspace_cache
+                services_cache = None
+                if wc is not None and hasattr(wc, "caches"):
+                    services_cache = wc.caches.get("services")
+
+                # Try to find a service that points to this file
+                if services_cache:
+                    file_path = Path(uri.replace("file://", "")) if uri.startswith("file://") else Path(uri)
+                    for sid, sdef in services_cache.get_all().items():
+                        try:
+                            class_path = getattr(sdef, "class_file_path", None)
+                            if class_path:
+                                svc_path = Path(class_path)
+                                if svc_path.resolve() == file_path.resolve():
+                                    strategy = self.strategies.get("service")
+                                    class_type = "service"
+                                    break
+                        except Exception:
+                            continue
+            except Exception:
+                # ignore cache errors
+                pass
         if not strategy:
             return WorkspaceEdit()
 
@@ -269,17 +297,25 @@ class DIRefactoringCodeActionCapability(CodeActionCapability):
             static_calls, service_ids
         )
 
-        # Combine all edits
-        all_text_edits = [e.text_edit for e in refactoring_edits]
-        all_text_edits.extend(replacement_edits)
+        # Combine all edits into a mapping of URI -> list[TextEdit]
+        changes: dict[str, list[TextEdit]] = {}
 
-        # Sort by position (reverse order for safe application)
-        all_text_edits.sort(
-            key=lambda e: (e.range.start.line, e.range.start.character),
-            reverse=True,
-        )
+        # Add edits produced by strategies (they may target other files, e.g., services.yml)
+        for ref_edit in refactoring_edits:
+            target = getattr(ref_edit, "target_uri", None) or uri
+            changes.setdefault(target, []).append(ref_edit.text_edit)
 
-        return WorkspaceEdit(changes={uri: all_text_edits})
+        # Add replacement edits (they always target the current file)
+        if replacement_edits:
+            changes.setdefault(uri, []).extend(replacement_edits)
+
+        # Sort edits for each file in reverse-order by position for safe application
+        from operator import attrgetter
+
+        for target_uri, edits_list in changes.items():
+            edits_list.sort(key=lambda e: (e.range.start.line, e.range.start.character), reverse=True)
+
+        return WorkspaceEdit(changes=changes)
 
     async def _resolve_inject_single(self, data: dict) -> WorkspaceEdit:
         """Resolve single service injection."""

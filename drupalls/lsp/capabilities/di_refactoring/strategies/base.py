@@ -40,6 +40,8 @@ class RefactoringEdit:
 
     description: str
     text_edit: TextEdit
+    # Optional URI for the target file this edit should be applied to.
+    target_uri: str | None = None
 
 
 class DIStrategy(ABC):
