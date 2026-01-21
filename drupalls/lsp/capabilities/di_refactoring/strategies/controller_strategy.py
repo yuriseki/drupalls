@@ -59,7 +59,9 @@ class ControllerDIStrategy(DIStrategy):
                 if service_id in existing_gets:
                     continue
 
-            info = get_service_interface(service_id)
+            # Allow service_interfaces to consult the workspace cache when
+            # available so we can synthesize interfaces from project services.
+            info = get_service_interface(service_id, workspace_cache=context.workspace_cache)
             new_services.append((service_id, info))
 
         if not new_services:
@@ -113,6 +115,11 @@ class ControllerDIStrategy(DIStrategy):
             # Check if already exists
             if not self.analyzer.has_use_statement(class_info, fqcn):
                 new_use_statements.append(info.use_statement)
+
+        # Ensure ContainerInterface is imported for create() signatures
+        container_fqcn = "Symfony\\Component\\DependencyInjection\\ContainerInterface"
+        if not self.analyzer.has_use_statement(class_info, container_fqcn):
+            new_use_statements.append("use Symfony\\Component\\DependencyInjection\\ContainerInterface;")
 
         if new_use_statements:
             # Insert before class declaration

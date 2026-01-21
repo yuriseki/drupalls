@@ -36,7 +36,7 @@ class PluginDIStrategy(DIStrategy):
         # Collect service info
         services_info = []
         for service_id in context.services_to_inject:
-            info = get_service_interface(service_id)
+            info = get_service_interface(service_id, workspace_cache=context.workspace_cache)
             if info:
                 services_info.append((service_id, info))
 

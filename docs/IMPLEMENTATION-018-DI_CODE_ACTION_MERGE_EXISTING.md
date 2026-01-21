@@ -1178,48 +1178,62 @@ class ControllerDIStrategy(DIStrategy):
         )
 ```
 
-### Step 4: Add Missing Service Interfaces
+### Step 4: Use the Workspace Services Cache (no hardcoded mapping)
 
-Add to `drupalls/lsp/capabilities/di_refactoring/service_interfaces.py`:
+Instead of shipping and maintaining a large hardcoded mapping of service
+IDs to interface types, the implementation now synthesizes interface
+information from the project's Services cache (WorkspaceCache.caches['services']).
+
+Key points:
+
+- There is no SERVICE_INTERFACES constant in the runtime path anymore — the
+  refactoring code consults the workspace services cache at runtime and
+  synthesizes a ServiceInterfaceInfo when a service definition includes a
+  class name.
+- This guarantees that the DI code action generates use statements and
+  constructor type hints based on the project's actual classes.
+
+Implementation (important snippet)
 
 ```python
-    "renderer": ServiceInterfaceInfo(
-        interface_fqcn="Drupal\\Core\\Render\\RendererInterface",
-        interface_short="RendererInterface",
-        property_name="renderer",
-        use_statement="use Drupal\\Core\\Render\\RendererInterface;",
-    ),
-    "entity.repository": ServiceInterfaceInfo(
-        interface_fqcn="Drupal\\Core\\Entity\\EntityRepositoryInterface",
-        interface_short="EntityRepositoryInterface",
-        property_name="entityRepository",
-        use_statement="use Drupal\\Core\\Entity\\EntityRepositoryInterface;",
-    ),
-    "date.formatter": ServiceInterfaceInfo(
-        interface_fqcn="Drupal\\Core\\Datetime\\DateFormatterInterface",
-        interface_short="DateFormatterInterface",
-        property_name="dateFormatter",
-        use_statement="use Drupal\\Core\\Datetime\\DateFormatterInterface;",
-    ),
-    "entity.manager": ServiceInterfaceInfo(
-        interface_fqcn="Drupal\\Core\\Entity\\EntityManagerInterface",
-        interface_short="EntityManagerInterface",
-        property_name="entityManager",
-        use_statement="use Drupal\\Core\\Entity\\EntityManagerInterface;",
-    ),
-    "file_system": ServiceInterfaceInfo(
-        interface_fqcn="Drupal\\Core\\File\\FileSystemInterface",
-        interface_short="FileSystemInterface",
-        property_name="fileSystem",
-        use_statement="use Drupal\\Core\\File\\FileSystemInterface;",
-    ),
-    "path.alias_manager": ServiceInterfaceInfo(
-        interface_fqcn="Drupal\\path_alias\\AliasManagerInterface",
-        interface_short="AliasManagerInterface",
-        property_name="aliasManager",
-        use_statement="use Drupal\\path_alias\\AliasManagerInterface;",
-    ),
+# drupalls/lsp/capabilities/di_refactoring/service_interfaces.py
+def get_service_interface(service_id: str, workspace_cache=None) -> ServiceInterfaceInfo | None:
+    """Synthesize ServiceInterfaceInfo for a service using the WorkspaceCache.
+
+    Returns None if the services cache does not contain a class for the
+    service_id. This function is defensive and will not raise on cache errors.
+    """
+    try:
+        if workspace_cache and hasattr(workspace_cache, "caches"):
+            services_cache = workspace_cache.caches.get("services")
+            if services_cache:
+                service_def = services_cache.get(service_id)
+                if service_def and service_def.class_name:
+                    fqcn = service_def.class_name.lstrip("\\")
+                    short = fqcn.split("\\")[-1]
+                    prop = get_property_name(service_id)
+                    use_stmt = f"use {fqcn};"
+                    return ServiceInterfaceInfo(
+                        interface_fqcn=fqcn,
+                        interface_short=short,
+                        property_name=prop,
+                        use_statement=use_stmt,
+                    )
+    except Exception:
+        # Never crash the refactoring flow because of cache issues
+        pass
+
+    return None
 ```
+
+Notes:
+
+- Because the information comes from the project's services, DI generation
+  adapts to custom services and third-party modules without changes to
+  DrupalLS.
+- If the cache does not contain a class for a service id (e.g. unknown
+  or dynamically created services), the DI strategy will skip type hints and
+  emit docblock-only property declarations.
 
 ### Step 5: Update __init__.py
 

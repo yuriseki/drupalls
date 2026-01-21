@@ -241,12 +241,23 @@ class DIRefactoringCodeActionCapability(CodeActionCapability):
             return WorkspaceEdit()
 
         # Create refactoring context
+        # Ensure workspace cache is initialized so we can synthesize interface
+        # information from the project's services. Initialization is idempotent.
+        if hasattr(self.server, "workspace_cache") and self.server.workspace_cache:
+            try:
+                if not getattr(self.server.workspace_cache, "_initialized", False):
+                    await self.server.workspace_cache.initialize()
+            except Exception:
+                # Don't fail refactoring if cache initialization fails.
+                pass
+
         refactor_context = DIRefactoringContext(
             file_uri=uri,
             file_content=doc.source,
             class_line=class_line,
             drupal_type=class_type,
             services_to_inject=service_ids,
+            workspace_cache=self.server.workspace_cache,
         )
 
         # Generate edits

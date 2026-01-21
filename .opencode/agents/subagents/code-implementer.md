@@ -1,6 +1,7 @@
 ---
 description: Implements Python code based on implementation documentation. Reads IMPLEMENTATION-*.md docs and creates the corresponding Python files in drupalls/.
 mode: subagent
+model: github-copilot/gpt-4.1
 temperature: 0.2
 tools:
   read: true

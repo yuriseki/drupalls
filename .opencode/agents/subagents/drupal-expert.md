@@ -1,6 +1,7 @@
 ---
 description: Drupal development specialist for DrupalLS. Provides guidance on Drupal conventions, constructs, and best practices for LSP features.
 mode: subagent
+model: github-copilot/gpt-4.1
 temperature: 0.2
 tools:
   read: true

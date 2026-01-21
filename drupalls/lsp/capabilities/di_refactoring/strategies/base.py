@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from drupalls.lsp.capabilities.di_refactoring.php_class_analyzer import (
         PhpClassInfo,
     )
+    from drupalls.workspace.cache import WorkspaceCache
 
 
 @dataclass
@@ -29,6 +30,8 @@ class DIRefactoringContext:
 
     # Analyzed class info (set by strategy)
     class_info: PhpClassInfo | None = None
+    # Optional workspace cache to allow strategies to consult project services
+    workspace_cache: 'WorkspaceCache | None' = None
 
 
 @dataclass

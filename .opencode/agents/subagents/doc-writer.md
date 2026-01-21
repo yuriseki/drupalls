@@ -1,6 +1,7 @@
 ---
 description: Technical documentation writer for DrupalLS. Creates comprehensive guides, tutorials, and reference documentation. Uses @codeblocks to validate all code examples.
 mode: subagent
+model: github-copilot/gpt-4.1
 temperature: 0.3
 tools:
   write: true
