@@ -18,13 +18,14 @@ This project uses OpenCode agents for orchestrated documentation work. Switch to
 
 | Agent | Type | Purpose |
 |-------|------|---------|
-| `core` | Primary | Orchestrates all documentation tasks |
+| `core` | Primary | Orchestrates all documentation and implementation tasks |
 | `@doc-writer` | Subagent | Creates documentation files |
 | `@code-explorer` | Subagent | Investigates codebase (read-only) |
 | `@lsp-expert` | Subagent | LSP protocol guidance |
 | `@drupal-expert` | Subagent | Drupal conventions guidance |
 | `@codeblocks` | Subagent | Validates code examples in docs |
 | `@test-creator` | Subagent | Creates comprehensive pytest tests |
+| `@code-implementer` | Subagent | Implements Python code from IMPLEMENTATION-*.md docs |
 
 ### Agent Definitions
 
@@ -36,6 +37,7 @@ Full agent instructions are in `.opencode/agents/`:
 - `.opencode/agents/subagents/drupal-expert.md` - Drupal expert
 - `.opencode/agents/subagents/codeblocks.md` - Code block validator
 - `.opencode/agents/subagents/test-creator.md` - Test file creator
+- `.opencode/agents/subagents/code-implementer.md` - Code implementer
 
 ## Project Structure
 
@@ -101,6 +103,27 @@ All code blocks are validated via `@codeblocks` → sandbox files in `drafts/`.
 3. Core agent reviews and integrates
 ```
 
+### Implementation Task
+
+**IMPORTANT**: Only invoke `@code-implementer` when the user:
+1. **Explicitly requests** code implementation (not documentation)
+2. **Specifies a specific** `IMPLEMENTATION-*.md` document to implement from
+
+```
+1. User requests implementation from IMPLEMENTATION-*.md doc
+   Example: "Implement code from IMPLEMENTATION-016-PHPACTOR_CONTEXT_AWARE_INTEGRATION.md"
+2. Core agent delegates to @code-implementer:
+   - Read implementation document
+   - Create Python files in drupalls/
+   - Verify syntax and imports
+3. For each file created:
+   - @test-creator → Create comprehensive tests
+   - Run tests (.venv/bin/python -m pytest)
+   - If tests fail → fix code or tests
+   - Repeat until passing
+4. Core agent reports final status
+```
+
 ### Code Validation
 
 ```
@@ -121,11 +144,12 @@ Files remain in drafts/ permanently
 
 ## Key Constraints
 
-- **Do NOT implement code** - documentation only (unless using @test-creator)
+- **Do NOT implement code directly** - use @code-implementer for implementation tasks
 - **Do NOT make architectural decisions** - document existing
 - **Always validate code blocks** before finalizing docs
 - **Always use modern Python syntax** (3.9+)
 - **Tests via @test-creator**: Mock only external deps, never internal functions
+- **Always use `.venv/bin/python`** - never bare `python` commands
 
 ## Current Status
 

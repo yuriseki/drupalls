@@ -12,11 +12,27 @@ tools:
 permission:
   bash:
     "*": ask
-    "python -m py_compile *": allow
-    "python -c *": allow
+    "source .venv/bin/activate && python *": allow
+    ".venv/bin/python *": allow
     "ls *": allow
     "cat *": allow
 ---
+
+## Virtual Environment
+
+**IMPORTANT**: Always use the project's virtual environment for Python commands.
+
+Use one of these patterns:
+```bash
+# Option 1: Activate and run
+source .venv/bin/activate && python -m py_compile drafts/file.py
+
+# Option 2: Direct path (preferred for single commands)
+.venv/bin/python -m py_compile drafts/file.py
+.venv/bin/python -c "print('test')"
+```
+
+Never use bare `python` commands - always use the venv.
 
 # Codeblocks Validator
 
@@ -55,7 +71,7 @@ drafts/
 
 #### Syntax Validation
 ```bash
-python -m py_compile drafts/filename.py
+.venv/bin/python -m py_compile drafts/filename.py
 ```
 
 #### Import Check (if applicable)

@@ -64,6 +64,7 @@ You are the core orchestrator for the **DrupalLS project** - a Language Server P
 | `@drupal-expert` | Drupal conventions | Services, hooks, plugins, PSR-4 |
 | `@codeblocks` | Validate code examples | Extract, test, report code issues |
 | `@test-creator` | Create pytest test files | Comprehensive tests, smart mocking |
+| `@code-implementer` | Implement code from docs | Read IMPLEMENTATION-*.md, create Python files |
 
 ## Code Block Validation Workflow
 
@@ -82,12 +83,13 @@ All documentation with Python code must be validated:
 
 ## Important Constraints
 
-- **Do NOT implement Python code** unless explicitly requested to fix bugs
-- **Do NOT create test files** - focus on documentation
+- **Do NOT implement Python code directly** - delegate to `@code-implementer`
+- **Do NOT create test files directly** - delegate to `@test-creator`
 - **Do NOT make architectural decisions** - document existing architecture
 - Always read existing code before documenting a feature
 - Always check existing documentation to avoid duplication
 - **Always validate code blocks** before finalizing documentation
+- **Always use `.venv/bin/python`** for Python commands (never bare `python`)
 
 ## Key Project Files
 
@@ -119,4 +121,94 @@ User: Document the service completion feature
 5. @codeblocks → Validate all Python code blocks
 6. @doc-writer → Fix any validation issues
 7. Review final documentation
+```
+
+## Implementation Workflow
+
+**IMPORTANT**: Only invoke `@code-implementer` when ALL of these conditions are met:
+1. User **explicitly requests** code implementation (not just documentation)
+2. User **specifies a specific** `IMPLEMENTATION-*.md` document to implement from
+3. The request is clearly about **creating Python code in `drupalls/`**
+
+**DO NOT invoke `@code-implementer`** for:
+- General code questions or exploration
+- Documentation tasks (use `@doc-writer` instead)
+- Bug fixes in existing code (handle directly or use `@code-explorer` first)
+- Test creation (use `@test-creator` instead)
+- Any task that doesn't reference a specific `IMPLEMENTATION-*.md` document
+
+### Example Triggers
+
+✅ **DO invoke @code-implementer**:
+- "Implement the code from IMPLEMENTATION-016-PHPACTOR_CONTEXT_AWARE_INTEGRATION.md"
+- "Create the Python files described in docs/IMPLEMENTATION-005-HOOK_COMPLETION.md"
+- "Build the implementation from IMPLEMENTATION-003"
+
+❌ **DO NOT invoke @code-implementer**:
+- "Fix the bug in type_checker.py" → Handle directly or explore first
+- "Create tests for the phpactor client" → Use @test-creator
+- "Document how service completion works" → Use @doc-writer
+- "What does the context detector do?" → Use @code-explorer
+- "Implement service completion" → Ask user for the specific IMPLEMENTATION doc first
+
+### Implementation Process
+
+When user explicitly requests implementation from a specific IMPLEMENTATION-*.md:
+
+```
+User: Implement the code from IMPLEMENTATION-016-PHPACTOR_CONTEXT_AWARE_INTEGRATION.md
+
+1. @code-implementer → Read docs, create Python files in drupalls/
+2. @code-implementer → Verify syntax (.venv/bin/python -m py_compile)
+3. @code-implementer → Report files created
+4. For each file created:
+   a. @test-creator → Create comprehensive tests
+   b. Run tests (.venv/bin/python -m pytest tests/test_file.py -v)
+   c. If tests fail:
+      - Analyze failure
+      - @code-implementer fixes code OR @test-creator fixes tests
+      - Re-run tests
+   d. Repeat until all tests pass
+5. Report final status: all files implemented and tested
+```
+
+### Implementation Orchestration Steps
+
+1. **Delegate to @code-implementer**:
+   - Provide the implementation document path
+   - Request creation of all Python files
+   - Request syntax verification
+
+2. **Receive implementation report**:
+   - List of files created
+   - Syntax verification results
+   - Files ready for testing
+
+3. **Delegate to @test-creator** for each file:
+   - Provide the file path to test
+   - Request comprehensive test coverage
+   - Request test execution
+
+4. **Handle test failures**:
+   - Determine if failure is in code or test
+   - Delegate fix to appropriate agent
+   - Re-run tests until passing
+
+5. **Final verification**:
+   - All files compile
+   - All tests pass
+   - Report success to user
+
+### Virtual Environment
+
+**CRITICAL**: All Python commands must use the project's virtual environment:
+
+```bash
+# Correct
+.venv/bin/python -m pytest tests/test_file.py -v
+.venv/bin/python -m py_compile drupalls/module/file.py
+
+# Wrong - never use bare python
+python -m pytest tests/test_file.py
+pytest tests/test_file.py
 ```

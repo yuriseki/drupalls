@@ -21,8 +21,9 @@ from lsprotocol.types import (
 
 from drupalls.lsp.capabilities.capabilities import CapabilityManager
 from drupalls.lsp.drupal_language_server import DrupalLanguageServer
-from drupalls.lsp.phpactor_integration import TypeChecker
+from drupalls.lsp.type_checker import TypeChecker
 from drupalls.lsp.text_sync_manager import TextSyncManager
+from drupalls.phpactor.client import PhpactorClient
 from drupalls.utils.find_files import find_drupal_root
 from drupalls.workspace.cache import WorkspaceCache
 
@@ -43,6 +44,7 @@ def create_server() -> DrupalLanguageServer:
     server.capability_manager = None
     server.text_sync_manager = None
     server.type_checker = None
+    server.phpactor_client = None
 
     @server.feature("initialize")
     async def initialize(ls: DrupalLanguageServer, params):
@@ -70,7 +72,11 @@ def create_server() -> DrupalLanguageServer:
         )
 
         # Initialize TypeChecker (CLI-based)
-        server.type_checker = TypeChecker()
+        server.phpactor_client = PhpactorClient()
+        if (server.phpactor_client.is_available()):
+            server.type_checker = TypeChecker(server.phpactor_client)
+        else:
+            server.type_checker = TypeChecker()
 
         # Initialize TextSyncManager BEFORE capabilities
         # so capabilities can register hooks during their initialization.

@@ -12,10 +12,27 @@ tools:
 permission:
   bash:
     "*": ask
-    "python -m pytest *": allow
-    "python -c *": allow
+    "source .venv/bin/activate && python *": allow
+    "source .venv/bin/activate && pytest *": allow
+    ".venv/bin/python *": allow
+    ".venv/bin/pytest *": allow
     "ls *": allow
 ---
+
+## Virtual Environment
+
+**IMPORTANT**: Always use the project's virtual environment for Python commands.
+
+Use one of these patterns:
+```bash
+# Option 1: Activate and run
+source .venv/bin/activate && python -m pytest tests/test_file.py -v
+
+# Option 2: Direct path (preferred for single commands)
+.venv/bin/python -m pytest tests/test_file.py -v
+```
+
+Never use bare `python` or `pytest` commands - always use the venv.
 
 # Test Creation Specialist
 
@@ -248,7 +265,7 @@ When asked to create tests for a file:
 4. **Create the test file** with comprehensive tests
 5. **Run the tests** to verify they work:
    ```bash
-   python -m pytest tests/test_filename.py -v
+   .venv/bin/python -m pytest tests/test_filename.py -v
    ```
 6. **Fix any issues** and re-run until all tests pass
 
@@ -286,7 +303,7 @@ After creating tests, provide a summary:
 
 ### Test Run:
 ```
-pytest tests/test_services_cache.py -v
+.venv/bin/python -m pytest tests/test_services_cache.py -v
 ========================= 18 passed in 0.45s =========================
 ```
 ```
