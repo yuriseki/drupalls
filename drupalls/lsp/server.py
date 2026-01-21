@@ -1,12 +1,18 @@
 from pathlib import Path
 
 from lsprotocol.types import (
+    TEXT_DOCUMENT_CODE_ACTION,
+    CODE_ACTION_RESOLVE,
     TEXT_DOCUMENT_COMPLETION,
     TEXT_DOCUMENT_DEFINITION,
     TEXT_DOCUMENT_DID_OPEN,
     TEXT_DOCUMENT_DID_SAVE,
     TEXT_DOCUMENT_HOVER,
     TEXT_DOCUMENT_REFERENCES,
+    CodeAction,
+    CodeActionKind,
+    CodeActionOptions,
+    CodeActionParams,
     CompletionList,
     CompletionParams,
     DefinitionParams,
@@ -120,5 +126,33 @@ def create_server() -> DrupalLanguageServer:
         if ls.capability_manager:
             return await ls.capability_manager.handle_references(params)
         return None
+
+    @server.feature(
+        TEXT_DOCUMENT_CODE_ACTION,
+        CodeActionOptions(
+            code_action_kinds=[
+                CodeActionKind.RefactorRewrite,
+                CodeActionKind.QuickFix,
+            ],
+            resolve_provider=True,
+        ),
+    )
+    async def code_action(
+        ls: DrupalLanguageServer, params: CodeActionParams
+    ) -> list[CodeAction] | None:
+        """Handle textDocument/codeAction request."""
+        if ls.capability_manager:
+            actions = await ls.capability_manager.handle_code_action(params)
+            return actions if actions else None
+        return None
+
+    @server.feature(CODE_ACTION_RESOLVE)
+    async def code_action_resolve(
+        ls: DrupalLanguageServer, action: CodeAction
+    ) -> CodeAction:
+        """Resolve a code action with full edit details."""
+        if ls.capability_manager:
+            return await ls.capability_manager.resolve_code_action(action)
+        return action
 
     return server

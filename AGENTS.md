@@ -150,6 +150,7 @@ Files remain in drafts/ permanently
 - **Always use modern Python syntax** (3.9+)
 - **Tests via @test-creator**: Mock only external deps, never internal functions
 - **Always use `.venv/bin/python`** - never bare `python` commands
+- **pygls v2 message logging**: `ls.window_log_message(LogMessageParams(type=MessageType.Info, message="..."))`
 
 ## Current Status
 

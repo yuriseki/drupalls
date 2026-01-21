@@ -352,6 +352,109 @@ async def get_context(self, uri: str) -> ClassContext | None:
     return result
 ```
 
+## pygls v2 Message Logging
+
+When implementing LSP server features that need to send log messages to the client, use the pygls v2 pattern:
+
+### Import Requirements
+
+```python
+from lsprotocol.types import (
+    LogMessageParams,
+    MessageType,
+)
+```
+
+### Sending Log Messages
+
+Use `server.window_log_message()` with a `LogMessageParams` object:
+
+```python
+# Info message
+server.window_log_message(
+    LogMessageParams(
+        type=MessageType.Info,
+        message="Document saved: {uri}"
+    )
+)
+
+# Warning message
+server.window_log_message(
+    LogMessageParams(
+        type=MessageType.Warning,
+        message="Configuration file not found"
+    )
+)
+
+# Error message
+server.window_log_message(
+    LogMessageParams(
+        type=MessageType.Error,
+        message=f"Failed to parse: {error}"
+    )
+)
+
+# Debug message
+server.window_log_message(
+    LogMessageParams(
+        type=MessageType.Debug,
+        message="Processing completed"
+    )
+)
+```
+
+### Message Types
+
+Available `MessageType` values (from lsprotocol):
+- `MessageType.Error` (1) - Error messages
+- `MessageType.Warning` (2) - Warning messages  
+- `MessageType.Info` (3) - Informational messages
+- `MessageType.Debug` (4) - Debug messages (may not be displayed by all clients)
+- `MessageType.Log` (4) - Alias for Debug
+
+### In Capabilities
+
+When inside a capability class that has access to `self.server`:
+
+```python
+class MyCapability(CompletionCapability):
+    def __init__(self, server: DrupalLanguageServer):
+        self.server = server
+    
+    async def handle_completion(self, params):
+        self.server.window_log_message(
+            LogMessageParams(
+                type=MessageType.Info,
+                message=f"Completion requested at {params.position}"
+            )
+        )
+        # ... implementation
+```
+
+### In Server Handlers
+
+When inside a server feature handler with `ls` parameter:
+
+```python
+@server.feature(TEXT_DOCUMENT_DID_SAVE)
+async def did_save(ls: DrupalLanguageServer, params: DidSaveTextDocumentParams):
+    ls.window_log_message(
+        LogMessageParams(
+            type=MessageType.Info,
+            message=f"Document saved: {params.text_document.uri}"
+        )
+    )
+```
+
+### Best Practices
+
+1. **Use appropriate message types** - Don't use Error for informational messages
+2. **Include relevant context** - File URIs, line numbers, service names
+3. **Keep messages concise** - Clients may truncate long messages
+4. **Avoid excessive logging** - Debug messages for development only
+
+---
+
 ## Integration with Orchestrator
 
 After completing implementation:

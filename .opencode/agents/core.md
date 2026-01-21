@@ -68,15 +68,50 @@ You are the core orchestrator for the **DrupalLS project** - a Language Server P
 
 ## Code Block Validation Workflow
 
-All documentation with Python code must be validated:
+All documentation with Python code must be validated. **The core agent orchestrates this process**:
 
 ```
-1. @doc-writer creates documentation with code examples
-2. @doc-writer invokes @codeblocks to validate
-3. @codeblocks extracts code → creates drafts/ files → validates
-4. @codeblocks reports: ✅ VALID, ❌ INVALID, ⚠️ WARNING
-5. @doc-writer fixes any issues
-6. Repeat until all blocks pass
+1. @doc-writer creates documentation (may write in sections for large docs)
+2. @doc-writer reports completion to core agent
+3. Core agent verifies file exists on disk
+4. Core agent invokes @codeblocks to validate the file
+5. @codeblocks extracts code → creates drafts/ files → validates
+6. @codeblocks reports: ✅ VALID, ❌ INVALID, ⚠️ WARNING
+7. If issues found:
+   a. Core agent sends specific fixes to @doc-writer
+   b. @doc-writer edits the document
+   c. Core agent re-invokes @codeblocks
+8. Repeat until all blocks pass
+```
+
+### Important Validation Notes
+
+- **Wait for doc-writer to complete** before calling @codeblocks
+- **Verify file exists** before validation (read the file first)
+- **Send specific fix requests** to doc-writer (line numbers, exact errors)
+- **Track iteration count** to avoid infinite loops (max 3 attempts)
+
+### Example Validation Flow
+
+```python
+# Step 1: doc-writer completes and reports
+# "DOCUMENT COMPLETE: docs/IMPLEMENTATION-017-FEATURE.md"
+
+# Step 2: Verify file exists
+read("docs/IMPLEMENTATION-017-FEATURE.md")
+
+# Step 3: Invoke codeblocks
+task(@codeblocks, "validate docs/IMPLEMENTATION-017-FEATURE.md")
+
+# Step 4: If issues reported, tell doc-writer to fix
+task(@doc-writer, """
+Fix these issues in docs/IMPLEMENTATION-017-FEATURE.md:
+- Line 107: Add missing colon after function definition
+- Line 158: Replace Optional[str] with str | None
+""")
+
+# Step 5: Re-validate
+task(@codeblocks, "validate docs/IMPLEMENTATION-017-FEATURE.md")
 ```
 
 **Sandbox Location**: `drafts/` - Contains tested code from documentation
@@ -211,4 +246,42 @@ User: Implement the code from IMPLEMENTATION-016-PHPACTOR_CONTEXT_AWARE_INTEGRAT
 # Wrong - never use bare python
 python -m pytest tests/test_file.py
 pytest tests/test_file.py
+```
+
+## Handling doc-writer Failures
+
+If doc-writer fails or times out (especially on large documents):
+
+### Check for Partial Files
+```bash
+ls -la docs/IMPLEMENTATION-NNN-*.md
+```
+
+### If Partial Exists
+1. Read the existing partial document
+2. Invoke doc-writer to complete the remaining sections
+3. doc-writer can edit the existing file to add sections
+
+### If No File Exists
+You may write the document yourself:
+1. Create the document with initial structure using Write
+2. Add sections incrementally using Edit
+3. Ensure all code blocks are complete and syntactically valid
+4. Use modern Python 3.9+ type hints
+5. Still invoke @codeblocks for validation after completion
+
+### For Very Large Documents
+Instruct doc-writer to write in parts:
+- **Part 1**: Overview, Problem/Use Case, Architecture
+- **Part 2**: Implementation Guide sections with code
+- **Part 3**: Edge Cases, Testing, Performance, References
+
+### Recovery Pattern
+```
+# If doc-writer fails:
+1. Check: ls -la docs/IMPLEMENTATION-017-*.md
+2. If partial exists: Read file, identify what's missing
+3. Invoke doc-writer: "Complete the document by adding [missing sections]"
+4. If still failing: Write directly using Write/Edit tools
+5. Always validate with @codeblocks when complete
 ```

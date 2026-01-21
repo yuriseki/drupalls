@@ -17,12 +17,16 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 from lsprotocol.types import (
+    CodeAction,
+    CodeActionParams,
     CompletionList,
     CompletionParams,
     DefinitionParams,
     Hover,
     HoverParams,
     Location,
+    LogMessageParams,
+    MessageType,
     ReferenceParams,
 )
 
@@ -135,6 +139,31 @@ class ReferencesCapability(Capability):
         pass
 
 
+class CodeActionCapability(Capability):
+    """Base class for code action capabilities."""
+
+    @abstractmethod
+    async def can_handle(self, params: CodeActionParams) -> bool:
+        """Check if this capability can handle the code action request."""
+        pass
+
+    @abstractmethod
+    async def get_code_actions(
+        self, params: CodeActionParams
+    ) -> list[CodeAction]:
+        """Return available code actions for the given context."""
+        pass
+
+    async def resolve(self, action: CodeAction) -> CodeAction:
+        """
+        Resolve a code action with full edit details.
+        
+        Override this method to provide lazy resolution of edit details.
+        By default, returns the action unchanged.
+        """
+        return action
+
+
 class CapabilityManager:
     """
     Central manager for all LSP capabilities.
@@ -166,6 +195,9 @@ class CapabilityManager:
                 ServicesYamlDefinitionCapability,
                 ServicesReferencesCapability,
             )
+            from drupalls.lsp.capabilities.di_code_action import (
+                DIRefactoringCodeActionCapability,
+            )
 
             capabilities = {
                 "services_completion": ServicesCompletionCapability(server),
@@ -173,6 +205,7 @@ class CapabilityManager:
                 "services_definition": ServicesDefinitionCapability(server),
                 "services_yaml_definition": ServicesYamlDefinitionCapability(server),
                 "services_references": ServicesReferencesCapability(server),
+                "di_refactoring": DIRefactoringCodeActionCapability(server),
                 # TODO: Implements other capabilities.
                 # "hooks_completion": HooksCompletionCapability(server)
                 # "config_completion": ConfigCompletionCapability(server)
@@ -254,3 +287,41 @@ class CapabilityManager:
                     return result
 
         return None
+
+    async def handle_code_action(
+        self, params: CodeActionParams
+    ) -> list[CodeAction]:
+        """Aggregate code actions from all capable handlers."""
+        all_actions: list[CodeAction] = []
+
+        for capability in self.get_capabilities_by_type(CodeActionCapability):
+            try:
+                if await capability.can_handle(params):
+                    actions = await capability.get_code_actions(params)  # pyright: ignore
+                    all_actions.extend(actions)
+            except Exception as e:
+                self.server.window_log_message(
+                    LogMessageParams(
+                        type=MessageType.Error,
+                        message=f"Code action error in {capability.name}: {e}"
+                    )
+                )
+
+        return all_actions
+
+    async def resolve_code_action(self, action: CodeAction) -> CodeAction:
+        """Resolve a code action with full edit details."""
+        for capability in self.get_capabilities_by_type(CodeActionCapability):
+            try:
+                resolved = await capability.resolve(action)  # pyright: ignore
+                if resolved.edit:
+                    return resolved
+            except Exception as e:
+                self.server.window_log_message(
+                    LogMessageParams(
+                        type=MessageType.Error,
+                        message=f"Code action resolve error in {capability.name}: {e}"
+                    )
+                )
+
+        return action
