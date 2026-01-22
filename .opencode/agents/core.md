@@ -1,7 +1,6 @@
 ---
 description: Core orchestrator for DrupalLS documentation project. Coordinates documentation writing, code exploration, and ensures consistency.
 mode: primary
-model: github-copilot/gpt-5-mini
 temperature: 0.2
 tools:
   write: true

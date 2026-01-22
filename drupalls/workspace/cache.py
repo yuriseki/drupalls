@@ -136,6 +136,7 @@ class WorkspaceCache:
         server: DrupalLanguageServer | None = None,
     ):
         from drupalls.workspace.services_cache import ServicesCache
+        from drupalls.workspace.routes_cache import RoutesCache
 
         self.project_root = project_root
         self.workspace_root = workspace_root # Drupal root directory
@@ -143,7 +144,10 @@ class WorkspaceCache:
 
         # In-memory caches
         self.file_info: dict[Path, FileInfo] = {}
-        self.caches = caches or {"services": ServicesCache(self)}
+        self.caches = caches or {
+            "services": ServicesCache(self),
+            "routes": RoutesCache(self)
+        }
 
         # State
         self._initialized = False
