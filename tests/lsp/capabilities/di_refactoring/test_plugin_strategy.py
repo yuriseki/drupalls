@@ -189,11 +189,19 @@ class TestPluginDIStrategyHelpers:
     ) -> None:
         """Test that use statements include plugin interface."""
         from drupalls.lsp.capabilities.di_refactoring.service_interfaces import (
-            get_service_interface,
+            ServiceInterfaceInfo,
         )
-        
+
         services_info = [
-            ("entity_type.manager", get_service_interface("entity_type.manager")),
+            (
+                "entity_type.manager",
+                ServiceInterfaceInfo(
+                    interface_fqcn="Drupal\\Core\\Entity\\EntityTypeManagerInterface",
+                    interface_short="EntityTypeManagerInterface",
+                    property_name="entityTypeManager",
+                    use_statement="use Drupal\\Core\\Entity\\EntityTypeManagerInterface;",
+                ),
+            )
         ]
         
         result = strategy._generate_use_statements(services_info)
@@ -207,11 +215,19 @@ class TestPluginDIStrategyHelpers:
     ) -> None:
         """Test generating constructor with plugin signature."""
         from drupalls.lsp.capabilities.di_refactoring.service_interfaces import (
-            get_service_interface,
+            ServiceInterfaceInfo,
         )
-        
+
         services_info = [
-            ("entity_type.manager", get_service_interface("entity_type.manager")),
+            (
+                "entity_type.manager",
+                ServiceInterfaceInfo(
+                    interface_fqcn="Drupal\\Core\\Entity\\EntityTypeManagerInterface",
+                    interface_short="EntityTypeManagerInterface",
+                    property_name="entityTypeManager",
+                    use_statement="use Drupal\\Core\\Entity\\EntityTypeManagerInterface;",
+                ),
+            )
         ]
         
         result = strategy._generate_constructor(services_info)
@@ -227,13 +243,21 @@ class TestPluginDIStrategyHelpers:
     ) -> None:
         """Test generating create() with plugin signature."""
         from drupalls.lsp.capabilities.di_refactoring.service_interfaces import (
-            get_service_interface,
+            ServiceInterfaceInfo,
         )
-        
+
         services_info = [
-            ("entity_type.manager", get_service_interface("entity_type.manager")),
+            (
+                "entity_type.manager",
+                ServiceInterfaceInfo(
+                    interface_fqcn="Drupal\\Core\\Entity\\EntityTypeManagerInterface",
+                    interface_short="EntityTypeManagerInterface",
+                    property_name="entityTypeManager",
+                    use_statement="use Drupal\\Core\\Entity\\EntityTypeManagerInterface;",
+                ),
+            )
         ]
-        
+
         result = strategy._generate_create_method(services_info)
         
         assert "ContainerInterface $container" in result

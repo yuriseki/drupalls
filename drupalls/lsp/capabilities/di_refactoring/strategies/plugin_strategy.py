@@ -36,9 +36,11 @@ class PluginDIStrategy(DIStrategy):
         # Collect service info
         services_info = []
         for service_id in context.services_to_inject:
-            info = get_service_interface(service_id, workspace_cache=context.workspace_cache)
-            if info:
-                services_info.append((service_id, info))
+            try:
+                info = get_service_interface(service_id, workspace_cache=context.workspace_cache)
+            except Exception:
+                info = None
+            services_info.append((service_id, info))
 
         # Generate interface implementation
         interface_edit = self._generate_interface_implementation(context)
@@ -154,7 +156,10 @@ class PluginDIStrategy(DIStrategy):
         """Generate use statements for services."""
         statements = []
         for service_id, info in services_info:
-            statements.append(info.use_statement)
+            if info is None:
+                continue
+            if info.use_statement not in statements:
+                statements.append(info.use_statement)
         # Add plugin interface
         statements.append(
             "use Drupal\\Core\\Plugin\\ContainerFactoryPluginInterface;"
@@ -168,6 +173,8 @@ class PluginDIStrategy(DIStrategy):
         """Generate property declarations."""
         lines = ["\n"]
         for service_id, info in services_info:
+            if info is None:
+                continue
             lines.append(
                 f"  protected {info.interface_short} ${info.property_name};\n"
             )
@@ -186,6 +193,8 @@ class PluginDIStrategy(DIStrategy):
         service_params = []
         assignments = []
         for service_id, info in services_info:
+            if info is None:
+                continue
             service_params.append(
                 f"    {info.interface_short} ${info.property_name}"
             )

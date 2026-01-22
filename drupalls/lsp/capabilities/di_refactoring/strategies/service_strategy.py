@@ -58,7 +58,10 @@ class ServiceDIStrategy(DIStrategy):
                 # nothing to skip here; we'll rely on property existence
                 pass
 
-            info = get_service_interface(service_id, workspace_cache=context.workspace_cache)
+            try:
+                info = get_service_interface(service_id, workspace_cache=context.workspace_cache)
+            except Exception:
+                info = None
             new_services.append((service_id, info))
 
         if not new_services:
@@ -92,7 +95,8 @@ class ServiceDIStrategy(DIStrategy):
                 continue
             fqcn = info.interface_fqcn
             if not self.analyzer.has_use_statement(class_info, fqcn):
-                new_use_statements.append(info.use_statement)
+                if info.use_statement not in new_use_statements:
+                    new_use_statements.append(info.use_statement)
 
         if new_use_statements:
             insert_line = class_info.use_section_end
@@ -128,6 +132,7 @@ class ServiceDIStrategy(DIStrategy):
 
             service_label = service_id.replace(".", " ").replace("_", " ")
             type_decl = f"{interface_short} " if interface_short else ""
+            # Use interface FQCN for docblock if available
             property_text += f"""  /**
    * The {service_label} service.
    *
@@ -154,11 +159,16 @@ class ServiceDIStrategy(DIStrategy):
             # copy merge logic adapted
             ctor = class_info.constructor
             existing_params: list[str] = []
-            for param_name, type_hint in ctor.params:
-                if type_hint:
-                    existing_params.append(f"    {type_hint} ${param_name}")
-                else:
-                    existing_params.append(f"    ${param_name}")
+            # Preserve original parameter declaration texts when possible (to keep promotions)
+            for pt in getattr(ctor, "param_texts", []):
+                existing_params.append(f"    {pt}")
+            # Fallback to parsed params if param_texts absent
+            if not existing_params:
+                for param_name, type_hint in ctor.params:
+                    if type_hint:
+                        existing_params.append(f"    {type_hint} ${param_name}")
+                    else:
+                        existing_params.append(f"    ${param_name}")
 
             new_params: list[str] = []
             new_assignments: list[str] = []
@@ -174,7 +184,15 @@ class ServiceDIStrategy(DIStrategy):
                     new_params.append(f"    {type_hint} ${prop_name}")
                 else:
                     new_params.append(f"    ${prop_name}")
-                new_assignments.append(f"    $this->{prop_name} = ${prop_name};")
+                # Only assign to properties for non-promoted params
+                # Check if this param is promoted in the param_texts
+                promoted = False
+                for pt in getattr(ctor, "param_texts", []):
+                    if f"${prop_name}" in pt and any(vis in pt for vis in ["private", "protected", "public"]):
+                        promoted = True
+                        break
+                if not promoted:
+                    new_assignments.append(f"    $this->{prop_name} = ${prop_name};")
 
             all_params = existing_params + new_params
 
@@ -328,9 +346,24 @@ class ServiceDIStrategy(DIStrategy):
 
         # Build new arguments list: keep original formatting for entries that started with @
         new_arguments = existing_args[:]  # copy
-        # Append bare service ids (without @) as in expected output
+        # Append bare service ids (without @) then normalize all entries to use '@' prefix
         for sid in to_add:
             new_arguments.append(sid)
+
+        # Normalize arguments: ensure service references use '@' prefix.
+        normalized_args: list[object] = []
+        for arg in new_arguments:
+            if isinstance(arg, str):
+                # Preserve parameters (%parameter%) and special YAML tags
+                if arg.startswith("@") or arg.startswith("%") or arg.startswith("!"):
+                    normalized_args.append(arg)
+                else:
+                    # Prefix with @ for service reference
+                    normalized_args.append(f"@{arg}")
+            else:
+                normalized_args.append(arg)
+
+        new_arguments = normalized_args
 
         # Replace the arguments in the YAML structure
         if isinstance(svc, dict):

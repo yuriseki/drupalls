@@ -16,6 +16,7 @@ class ConstructorInfo:
     start_line: int  # Line with "public function __construct"
     end_line: int  # Line with closing "}"
     params: list[tuple[str, str | None]]  # [(param_name, type_hint), ...]
+    param_texts: list[str]  # original parameter declaration texts
     body_lines: list[str]  # Lines inside constructor body
     docblock_start: int | None  # Line where docblock starts
     docblock_end: int | None  # Line where docblock ends
@@ -251,6 +252,7 @@ class PhpClassAnalyzer:
         brace_count = 0
         end_line = start_line
         params: list[tuple[str, str | None]] = []
+        param_texts: list[str] = []
         body_lines: list[str] = []
         in_body = False
 
@@ -268,14 +270,17 @@ class PhpClassAnalyzer:
         if param_section:
             param_str = param_section.group(1)
             for param in param_str.split(","):
-                param = param.strip()
-                if not param:
+                orig = param.strip()
+                if not orig:
                     continue
+                param_texts.append(orig)
+
+                # Normalize promoted properties: strip visibility and readonly tokens
+                norm = re.sub(r"\b(private|protected|public)\b\s*", "", orig)
+                norm = re.sub(r"\breadonly\b\s*", "", norm)
 
                 # Match: TypeHint $name or $name
-                param_match = re.match(
-                    r"(?:([\w\\]+)\s+)?(\$\w+)", param
-                )
+                param_match = re.match(r"(?:([\w\\]+)\s+)?(\$\w+)", norm)
                 if param_match:
                     type_hint = param_match.group(1)
                     name = param_match.group(2).lstrip("$")
@@ -307,6 +312,7 @@ class PhpClassAnalyzer:
             start_line=start_line,
             end_line=end_line,
             params=params,
+            param_texts=param_texts,
             body_lines=body_lines,
             docblock_start=docblock_start,
             docblock_end=docblock_end,
