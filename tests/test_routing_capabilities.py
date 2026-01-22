@@ -37,9 +37,10 @@ def mock_server():
 
 @pytest.fixture
 def workspace_cache():
-    """Mock WorkspaceCache with routes."""
+    """Mock WorkspaceCache with routes and classes."""
     cache = Mock()
     routes_cache = Mock()
+    classes_cache = Mock()
 
     # Create mock route definitions
     route1 = RouteDefinition(
@@ -74,7 +75,23 @@ def workspace_cache():
     routes_cache.get.return_value = route1
     routes_cache.search.return_value = [route1]
 
-    cache.caches = {"routes": routes_cache}
+    # Create mock class definitions
+    from drupalls.workspace.classes_cache import ClassDefinition
+    class1 = ClassDefinition(
+        id="\\Drupal\\Test\\Controller",
+        description="\\Drupal\\Test\\Controller",
+        file_path=Mock(),
+        line_number=1,
+        namespace="\\Drupal\\Test",
+        class_name="Controller",
+        full_name="\\Drupal\\Test\\Controller",
+        methods=["build", "create", "__invoke"],
+    )
+
+    classes_cache.get_all.return_value = {"\\Drupal\\Test\\Controller": class1}
+    classes_cache.get_methods.return_value = ["build", "create", "__invoke"]
+
+    cache.caches = {"routes": routes_cache, "classes": classes_cache}
     cache.workspace_root = "/workspace"
     return cache
 
@@ -225,8 +242,9 @@ class TestRouteHandlerCompletionCapability:
         result = await route_handler_completion_capability.complete(params)
 
         assert len(result.items) > 0
-        assert any(item.label == "\\Drupal\\" for item in result.items)
-        assert all(item.kind == CompletionItemKind.Module for item in result.items)
+        # Check that we get namespace and class suggestions
+        labels = [item.label for item in result.items]
+        assert any("\\Drupal" in label for label in labels)
 
 
 class TestRouteMethodCompletionCapability:
@@ -259,9 +277,14 @@ class TestRouteMethodCompletionCapability:
     @pytest.mark.asyncio
     async def test_complete_provides_method_suggestions(self, route_method_completion_capability):
         """Test that completion provides common method names."""
+        # Mock document with a line containing ::
+        mock_doc = Mock()
+        mock_doc.lines = ["  _controller: '\\Drupal\\Test\\Controller::'"]
+        route_method_completion_capability.server.workspace.get_text_document.return_value = mock_doc
+
         params = CompletionParams(
             text_document=TextDocumentIdentifier(uri="routes.routing.yml"),
-            position=Position(line=0, character=10)
+            position=Position(line=0, character=40)  # After ::
         )
 
         result = await route_method_completion_capability.complete(params)

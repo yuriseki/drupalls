@@ -35,6 +35,7 @@ from drupalls.lsp.capabilities.capabilities import (
 )
 from drupalls.lsp.drupal_language_server import DrupalLanguageServer
 from drupalls.workspace.routes_cache import RouteDefinition, RoutesCache
+from drupalls.workspace.classes_cache import ClassDefinition, ClassesCache
 
 
 # Route name completion patterns (in PHP code)
@@ -101,13 +102,13 @@ class RoutesCompletionCapability(CompletionCapability):
                     file_path_str = str(route_def.file_path)
 
             # Create documentation with route details
-            doc_lines = [f"**Path:** {route_def.path}"]  # type: ignore[attr]
-            if route_def.handler_class:  # type: ignore[attr]
-                doc_lines.append(f"**Handler:** {route_def.handler_class}")  # type: ignore[attr]
-            if route_def.permission:  # type: ignore[attr]
-                doc_lines.append(f"**Permission:** {route_def.permission}")  # type: ignore[attr]
-            if route_def.methods != ["GET"]:  # type: ignore[attr]
-                doc_lines.append(f"**Methods:** {', '.join(route_def.methods)}")  # type: ignore[attr]
+            doc_lines = [f"**Path:** {route_def.path}"]  # type: ignore
+            if route_def.handler_class:  # type: ignore
+                doc_lines.append(f"**Handler:** {route_def.handler_class}")  # type: ignore
+            if route_def.permission:  # type: ignore
+                doc_lines.append(f"**Permission:** {route_def.permission}")  # type: ignore
+            if route_def.methods != ["GET"]:  # type: ignore
+                doc_lines.append(f"**Methods:** {', '.join(route_def.methods)}")  # type: ignore
             doc_lines.append(f"**Defined in:** {file_path_str}")
 
             items.append(
@@ -147,23 +148,49 @@ class RouteHandlerCompletionCapability(CompletionCapability):
 
     async def complete(self, params: CompletionParams) -> CompletionList:
         """Provide PHP namespace/class completions for route handlers."""
-        # For now, provide basic Drupal namespace suggestions
-        # TODO: Integrate with Phpactor for full class completion
-        drupal_namespaces = [
-            "\\Drupal\\",
-            "\\Drupal\\Core\\",
-            "\\Drupal\\Component\\",
-            "\\Symfony\\Component\\",
-        ]
+        if not self.workspace_cache:
+            return CompletionList(is_incomplete=False, items=[])
 
+        classes_cache = self.workspace_cache.caches.get("classes")
+        if not classes_cache:
+            return CompletionList(is_incomplete=False, items=[])
+
+        # Get all classes and extract unique namespaces
+        all_classes = classes_cache.get_all()
+        namespaces = set()
+
+        for class_def_base in all_classes.values():
+            class_def = cast(ClassDefinition, class_def_base)
+            if class_def.namespace:
+                # Add the full namespace
+                namespaces.add(class_def.namespace)
+                # Add parent namespaces
+                parts = class_def.namespace.split('\\')
+                for i in range(1, len(parts)):
+                    namespaces.add('\\'.join(parts[:i+1]))
+
+        # Sort and create completion items
         items = []
-        for ns in drupal_namespaces:
+        for ns in sorted(namespaces):
             items.append(
                 CompletionItem(
                     label=ns,
                     kind=CompletionItemKind.Module,
                     detail="PHP namespace",
-                    insert_text=ns,
+                    insert_text=ns + '\\',
+                )
+            )
+
+        # Also add class names for completion
+        for class_def_base in all_classes.values():
+            class_def = cast(ClassDefinition, class_def_base)
+            items.append(
+                CompletionItem(
+                    label=class_def.full_name,
+                    kind=CompletionItemKind.Class,
+                    detail=f"Class in {class_def.namespace}",
+                    documentation=f"Defined in: {class_def.file_path.name}",
+                    insert_text=class_def.full_name,
                 )
             )
 
@@ -195,21 +222,49 @@ class RouteMethodCompletionCapability(CompletionCapability):
 
     async def complete(self, params: CompletionParams) -> CompletionList:
         """Provide method name completions after ::."""
-        # For now, provide common Drupal controller method names
-        # TODO: Integrate with Phpactor for actual class method introspection
-        common_methods = [
-            "build",
-            "content",
-            "__invoke",
-            "create",
-            "edit",
-            "delete",
-            "view",
-            "list",
-            "overview",
-            "settings",
-            "configure",
-        ]
+        if not self.workspace_cache:
+            return CompletionList(is_incomplete=False, items=[])
+
+        classes_cache_base = self.workspace_cache.caches.get("classes")
+        if not classes_cache_base:
+            return CompletionList(is_incomplete=False, items=[])
+
+        classes_cache = cast(ClassesCache, classes_cache_base)
+
+        # Extract the class name from the line before ::
+        doc = self.server.workspace.get_text_document(params.text_document.uri)
+        line: str = doc.lines[params.position.line]
+
+        # Find the class name before ::
+        double_colon_pos = line.find('::')
+        if double_colon_pos == -1:
+            return CompletionList(is_incomplete=False, items=[])
+
+        # Extract class name (from start of quotes to ::)
+        class_part = line[:double_colon_pos]
+        class_name = None
+
+        # Look for quoted class name
+        import re
+        match = re.search(r'["\']([^"\']+)["\']', class_part)
+        if match:
+            class_name = match.group(1)
+
+        if not class_name:
+            # Fallback to common methods
+            common_methods = [
+                "build", "content", "__invoke", "create", "edit",
+                "delete", "view", "list", "overview", "settings", "configure"
+            ]
+        else:
+            # Get actual methods from the class
+            common_methods = classes_cache.get_methods(class_name)
+            if not common_methods:
+                # Fallback if class not found
+                common_methods = [
+                    "build", "content", "__invoke", "create", "edit",
+                    "delete", "view", "list", "overview", "settings", "configure"
+                ]
 
         items = []
         for method in common_methods:
@@ -217,7 +272,7 @@ class RouteMethodCompletionCapability(CompletionCapability):
                 CompletionItem(
                     label=method,
                     kind=CompletionItemKind.Method,
-                    detail="Controller method",
+                    detail=f"Method in {class_name}" if class_name else "Controller method",
                     insert_text=method,
                 )
             )
@@ -276,25 +331,25 @@ class RoutesHoverCapability(HoverCapability):
             return None
 
         # Build hover content
-        lines = [f"**Route:** {route_def.name}", f"**Path:** {route_def.path}"]
+        lines = [f"**Route:** {route_def.name}", f"**Path:** {route_def.path}"]  # type: ignore
 
-        if route_def.handler_class:
-            lines.append(f"**Handler:** `{route_def.handler_class}`")
+        if route_def.handler_class:  # type: ignore
+            lines.append(f"**Handler:** `{route_def.handler_class}`")  # type: ignore
 
-        if route_def.permission:
-            lines.append(f"**Permission:** {route_def.permission}")
+        if route_def.permission:  # type: ignore
+            lines.append(f"**Permission:** {route_def.permission}")  # type: ignore
 
-        if route_def.methods != ["GET"]:
-            lines.append(f"**Methods:** {', '.join(route_def.methods)}")
+        if route_def.methods != ["GET"]:  # type: ignore
+            lines.append(f"**Methods:** {', '.join(route_def.methods)}")  # type: ignore
 
-        if route_def.file_path:
+        if route_def.file_path:  # type: ignore
             try:
                 relative = route_def.file_path.relative_to(
                     self.workspace_cache.workspace_root
                 )
                 lines.append(f"**Defined in:** {relative}")
             except ValueError:
-                lines.append(f"**Defined in:** {route_def.file_path}")
+                lines.append(f"**Defined in:** {route_def.file_path}")  # type: ignore
 
         return Hover(
             contents=MarkupContent(

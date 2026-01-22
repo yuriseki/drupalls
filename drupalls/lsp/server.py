@@ -93,9 +93,22 @@ def create_server() -> DrupalLanguageServer:
         ls.workspace_cache = WorkspaceCache(project_root, drupal_root, server=ls)
         await ls.workspace_cache.initialize()
 
-        count = len(ls.workspace_cache.caches["services"].get_all())
-        message = LogMessageParams(MessageType.Info, f"Loaded {count} services")
-        ls.window_log_message(message)
+        # Log cache statistics
+        services_count = len(ls.workspace_cache.caches["services"].get_all())
+        routes_count = len(ls.workspace_cache.caches["routes"].get_all())
+        classes_count = len(ls.workspace_cache.caches["classes"].get_all())
+
+        ls.window_log_message(LogMessageParams(MessageType.Info, f"Loaded {services_count} services"))
+        ls.window_log_message(LogMessageParams(MessageType.Info, f"Loaded {routes_count} routes"))
+        ls.window_log_message(LogMessageParams(MessageType.Info, f"Loaded {classes_count} classes"))
+
+        # Debug classes cache if empty
+        if classes_count == 0:
+            classes_cache = ls.workspace_cache.caches["classes"]
+            ls.window_log_message(LogMessageParams(
+                MessageType.Warning,
+                f"Classes cache is empty. Workspace root: {drupal_root}, exists: {drupal_root.exists()}"
+            ))
 
         # Initialize capability manager
         ls.capability_manager = CapabilityManager(ls)

@@ -137,6 +137,7 @@ class WorkspaceCache:
     ):
         from drupalls.workspace.services_cache import ServicesCache
         from drupalls.workspace.routes_cache import RoutesCache
+        from drupalls.workspace.classes_cache import ClassesCache
 
         self.project_root = project_root
         self.workspace_root = workspace_root # Drupal root directory
@@ -146,7 +147,8 @@ class WorkspaceCache:
         self.file_info: dict[Path, FileInfo] = {}
         self.caches = caches or {
             "services": ServicesCache(self),
-            "routes": RoutesCache(self)
+            "routes": RoutesCache(self),
+            "classes": ClassesCache(self)
         }
 
         # State
@@ -207,13 +209,14 @@ class WorkspaceCache:
 
     # ===== Cache Persistence =====
     async def _load_from_disk(self) -> bool:
-        result = False
+        """Load all caches from disk. Returns True only if ALL caches load successfully."""
+        all_loaded = True
         for c in self.caches.values():
             if isinstance(c, CachedWorkspace):
-                if await c.load_from_disk():
-                    result = True
+                if not await c.load_from_disk():
+                    all_loaded = False
 
-        return result
+        return all_loaded
 
     async def _save_to_disk(self):
         for c in self.caches.values():
