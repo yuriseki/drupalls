@@ -14,7 +14,7 @@ Design Principles:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Mapping
 
 from lsprotocol.types import (
     CodeAction,
@@ -45,7 +45,11 @@ class Capability(ABC):
 
     def __init__(self, server: DrupalLanguageServer) -> None:
         self.server = server
-        self.workspace_cache = server.workspace_cache
+
+    @property
+    def workspace_cache(self):
+        """Lazy access to workspace_cache to handle initialization timing."""
+        return self.server.workspace_cache
 
     def register(self) -> None:
         """
@@ -182,7 +186,7 @@ class CapabilityManager:
     def __init__(
         self,
         server: DrupalLanguageServer,
-        capabilities: dict[str, Capability] | None = None,
+        capabilities: Mapping[str, Capability] | None = None,
     ):
         self.server = server
 
@@ -195,6 +199,13 @@ class CapabilityManager:
                 ServicesYamlDefinitionCapability,
                 ServicesReferencesCapability,
             )
+            from drupalls.lsp.capabilities.routing_capabilities import (
+                RoutesCompletionCapability,
+                RouteHandlerCompletionCapability,
+                RouteMethodCompletionCapability,
+                RoutesHoverCapability,
+                RoutesDefinitionCapability,
+            )
             from drupalls.lsp.capabilities.di_code_action import (
                 DIRefactoringCodeActionCapability,
             )
@@ -205,13 +216,18 @@ class CapabilityManager:
                 "services_definition": ServicesDefinitionCapability(server),
                 "services_yaml_definition": ServicesYamlDefinitionCapability(server),
                 "services_references": ServicesReferencesCapability(server),
+                "routes_completion": RoutesCompletionCapability(server),
+                "route_handler_completion": RouteHandlerCompletionCapability(server),
+                "route_method_completion": RouteMethodCompletionCapability(server),
+                "routes_hover": RoutesHoverCapability(server),
+                "routes_definition": RoutesDefinitionCapability(server),
                 "di_refactoring": DIRefactoringCodeActionCapability(server),
                 # TODO: Implements other capabilities.
                 # "hooks_completion": HooksCompletionCapability(server)
                 # "config_completion": ConfigCompletionCapability(server)
             }
 
-        self.capabilities = capabilities
+        self.capabilities = dict(capabilities) if capabilities else {}
         self._registered = False
 
     def register_all(self) -> None:

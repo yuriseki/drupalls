@@ -353,9 +353,233 @@ admin.settings:
 - [pygls Documentation](https://pygls.readthedocs.io/)
 - [Implementation Pattern: Services Cache](IMPLEMENTATION-009-IMPLEMENTING_CACHE_HOOKS_SERVICES.md)
 
+## LSP Capabilities Implementation
+
+Following the same architecture as services capabilities, implement routing-related LSP features.
+
+### 1. Route Name Completion
+
+Provide autocompletion for route names in PHP code.
+
+**Context Detection:**
+```php
+// Route name completion in these contexts:
+\Drupal::service('router')->match('/some-path');  // router.match()
+$url = \Drupal\Core\Url::fromRoute('...');        // Url::fromRoute()
+$form_state->setRedirect('...');                  // setRedirect()
+$this->redirect('...');                           // redirect()
+```
+
+**Implementation:**
+```python
+class RoutesCompletionCapability(CompletionCapability):
+    """Provides completion for Drupal route names."""
+
+    ROUTE_PATTERNS = [
+        re.compile(r"fromRoute\(['\"]"),
+        re.compile(r"setRedirect\(['\"]"),
+        re.compile(r"redirect\(['\"]"),
+        re.compile(r"router.*match\("),
+    ]
+
+    async def can_handle(self, params: CompletionParams) -> bool:
+        doc = self.server.workspace.get_text_document(params.text_document.uri)
+        line = doc.lines[params.position.line]
+        return any(pattern.search(line) for pattern in self.ROUTE_PATTERNS)
+
+    async def complete(self, params: CompletionParams) -> CompletionList:
+        if not self.workspace_cache:
+            return CompletionList(is_incomplete=False, items=[])
+
+        routes_cache = self.workspace_cache.caches.get("routes")
+        if not routes_cache:
+            return CompletionList(is_incomplete=False, items=[])
+
+        all_routes = routes_cache.get_all()
+        items = []
+        for route_name, route_def in all_routes.items():
+            items.append(CompletionItem(
+                label=route_name,
+                kind=CompletionItemKind.Value,
+                detail=route_def.path,
+                documentation=f"Route: {route_def.path}\nHandler: {route_def.handler_class or 'None'}",
+                insert_text=route_name,
+            ))
+
+        return CompletionList(is_incomplete=False, items=items)
+```
+
+### 2. Route Handler Namespace Completion
+
+Provide autocompletion for PHP namespaces in route definitions.
+
+**Context Detection:**
+```yaml
+# In *.routing.yml files
+my_route:
+  path: '/example'
+  defaults:
+    _controller: '\Drupal\my_module\Controller\|'  # Cursor here
+    _form: '\Drupal\my_module\Form\|'              # Or here
+    _title_callback: '\Drupal\my_module\|'         # Or here
+```
+
+**Implementation:**
+```python
+class RouteHandlerCompletionCapability(CompletionCapability):
+    """Provides completion for PHP namespaces/classes in route handlers."""
+
+    async def can_handle(self, params: CompletionParams) -> bool:
+        # Only in .routing.yml files
+        if not params.text_document.uri.endswith('.routing.yml'):
+            return False
+
+        doc = self.server.workspace.get_text_document(params.text_document.uri)
+        line = doc.lines[params.position.line]
+
+        # Check if cursor is in a handler context
+        return any(key in line for key in ['_controller:', '_form:', '_title_callback:'])
+
+    async def complete(self, params: CompletionParams) -> CompletionList:
+        # Use existing PHP class completion or provide namespace suggestions
+        # This could integrate with Phpactor or provide basic namespace completion
+        pass
+```
+
+### 3. Route Handler Method Completion
+
+Provide autocompletion for method names after `::` in route handlers.
+
+**Context Detection:**
+```yaml
+# In *.routing.yml files
+my_route:
+  path: '/example'
+  defaults:
+    _controller: '\Drupal\my_module\Controller\MyController::|'  # Cursor after ::
+    _title_callback: '\Drupal\my_module\Utils::|'                # Cursor after ::
+```
+
+**Implementation:**
+```python
+class RouteMethodCompletionCapability(CompletionCapability):
+    """Provides completion for method names in route handlers."""
+
+    async def can_handle(self, params: CompletionParams) -> bool:
+        if not params.text_document.uri.endswith('.routing.yml'):
+            return False
+
+        doc = self.server.workspace.get_text_document(params.text_document.uri)
+        line = doc.lines[params.position.line]
+
+        # Check if cursor is after :: in a handler
+        return '::' in line and any(key in line for key in ['_controller:', '_form:', '_title_callback:'])
+
+    async def complete(self, params: CompletionParams) -> CompletionList:
+        # Extract class name before :: and provide method completion
+        # This requires PHP class introspection or Phpactor integration
+        pass
+```
+
+### 4. Route Hover Information
+
+Provide hover information for route names and handlers.
+
+**Implementation:**
+```python
+class RoutesHoverCapability(HoverCapability):
+    """Provides hover information for routes."""
+
+    async def can_handle(self, params: HoverParams) -> bool:
+        # Check if hovering over route name in PHP or YAML
+        pass
+
+    async def hover(self, params: HoverParams) -> Hover | None:
+        # Show route details: path, handler, permissions, etc.
+        pass
+```
+
+### 5. Route Go-to-Definition
+
+Navigate to route definitions and handler classes.
+
+**Implementation:**
+```python
+class RoutesDefinitionCapability(DefinitionCapability):
+    """Provides go-to-definition for routes."""
+
+    async def can_handle(self, params: DefinitionParams) -> bool:
+        # Check if on route name or handler reference
+        pass
+
+    async def definition(self, params: DefinitionParams) -> Location | None:
+        # Navigate to route YAML or PHP class
+        pass
+```
+
+## Integration with Capabilities Manager
+
+Register the routing capabilities in the capabilities manager:
+
+```python
+# drupalls/lsp/capabilities/__init__.py or capabilities.py
+from drupalls.lsp.capabilities.routing_capabilities import (
+    RoutesCompletionCapability,
+    RouteHandlerCompletionCapability,
+    RouteMethodCompletionCapability,
+    RoutesHoverCapability,
+    RoutesDefinitionCapability,
+)
+
+# In CapabilitiesManager.register_all()
+routing_capabilities = [
+    RoutesCompletionCapability(server),
+    RouteHandlerCompletionCapability(server),
+    RouteMethodCompletionCapability(server),
+    RoutesHoverCapability(server),
+    RoutesDefinitionCapability(server),
+]
+
+for capability in routing_capabilities:
+    capability.register()
+    self._capabilities.append(capability)
+```
+
+## Testing
+
+### Unit Tests
+
+```python
+def test_route_completion_can_handle():
+    # Test context detection for route name completion
+    pass
+
+def test_route_handler_completion_in_yaml():
+    # Test namespace completion in routing.yml files
+    pass
+
+def test_route_method_completion_after_double_colon():
+    # Test method completion after ::
+    pass
+```
+
+### Integration Tests
+
+```python
+def test_routing_capabilities_registered():
+    # Verify all routing capabilities are registered
+    pass
+
+def test_route_completion_with_real_routes():
+    # Test completion using routes from real Drupal project
+    pass
+```
+
 ## Next Steps
 
 - Implement the `RoutesCache` class in `drupalls/workspace/routes_cache.py`.
 - Register the cache in the workspace initialization.
-- Integrate with LSP capability providers for route-based features.
-- Write comprehensive tests for cache population and updates.
+- Implement routing capabilities in `drupalls/lsp/capabilities/routing_capabilities.py`.
+- Register capabilities in the capabilities manager.
+- Write comprehensive tests for cache population and LSP features.
+- Integrate with Phpactor for enhanced PHP class/method completion.
