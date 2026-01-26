@@ -133,29 +133,53 @@ task(@codeblocks, "validate docs/IMPLEMENTATION-017-FEATURE.md")
 - `drupalls/` - Python implementation source code
 - `drafts/` - Sandbox for testing code blocks from documentation
 
-## When Starting a Task
+## Mandatory Documentation Workflow
 
-1. First understand what exists: check related docs and implementation
-2. Plan the documentation structure using the template
-3. Delegate to specialized subagents as needed
-4. Use `@code-explorer` to understand implementation details
-5. Use `@doc-writer` to create documentation
-6. Ensure `@codeblocks` validates all code examples
-7. Review and integrate outputs
-8. Ensure all documentation follows project standards
+When tasked with creating documentation, you **must** follow this workflow strictly. Do not skip steps or rely on your own knowledge as a substitute for agent delegation. The goal is to ensure every piece of documentation is built upon a verifiable foundation of information gathered by specialized agents.
 
-## Typical Workflow Example
+1.  **Plan & Deconstruct**:
+    *   Identify the core subject of the documentation (e.g., a feature, an architecture component).
+    *   Determine the filename using the `doc-naming` skill if necessary.
+
+2.  **Delegate Information Gathering (Run in Parallel)**:
+    *   **ALWAYS** invoke `@code-explorer` to investigate the relevant parts of the codebase.
+    *   **ALWAYS** invoke `@lsp-expert` to gather details on LSP-specific patterns, types, and best practices.
+    *   **ALWAYS** invoke `@drupal-expert` to get information on Drupal conventions, APIs, and best practices.
+    *   **Do NOT** use the `read` tool as a substitute for `@code-explorer`. The explorer agent is optimized for this task.
+
+3.  **Synthesize and Delegate Writing**:
+    *   Once you have received responses from all three expert agents, synthesize their findings.
+    *   Create a detailed prompt for `@doc-writer` that includes the gathered information.
+    *   Delegate the documentation writing to `@doc-writer`.
+
+4.  **Validate and Iterate**:
+    *   After `@doc-writer` completes the document, verify the file exists by reading it.
+    *   Invoke `@codeblocks` to validate all Python code examples.
+    *   If validation fails, provide specific feedback to `@doc-writer` and repeat the validation step until all code blocks are valid.
+
+5.  **Final Review**:
+    *   Review the final, validated document to ensure it is coherent, accurate, and complete.
+
+### Example Invocation
 
 ```
-User: Document the service completion feature
+User: Document the service completion feature.
 
-1. @code-explorer → Find how service completion is implemented
-2. @lsp-expert → Understand completion LSP protocol details
-3. @drupal-expert → Understand Drupal service conventions
-4. @doc-writer → Create IMPLEMENTATION-NNN-SERVICE_COMPLETION.md
-5. @codeblocks → Validate all Python code blocks
-6. @doc-writer → Fix any validation issues
-7. Review final documentation
+// Step 1: Plan (determine filename is IMPLEMENTATION-NNN-SERVICE_COMPLETION.md)
+
+// Step 2: Delegate Information Gathering (in parallel)
+task(@code-explorer, "Investigate the implementation of service completion...")
+task(@lsp-expert, "Provide details on LSP CompletionItems for methods...")
+task(@drupal-expert, "Explain Drupal service access patterns...")
+
+// Step 3: Synthesize and Delegate Writing (after getting responses)
+task(@doc-writer, "Create docs/IMPLEMENTATION-NNN-SERVICE_COMPLETION.md using this info: ...")
+
+// Step 4: Validate
+read("docs/IMPLEMENTATION-NNN-SERVICE_COMPLETION.md")
+task(@codeblocks, "validate docs/IMPLEMENTATION-NNN-SERVICE_COMPLETION.md")
+
+// Step 5: Final Review
 ```
 
 ## Implementation Workflow

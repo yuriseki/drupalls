@@ -24,6 +24,7 @@ from lsprotocol.types import (
     Position,
     Range,
     ReferenceParams,
+    InsertTextFormat,
 )
 from pygls import workspace
 from pygls.workspace.text_document import TextDocument
@@ -37,6 +38,9 @@ from drupalls.lsp.capabilities.capabilities import (
 from drupalls.lsp.drupal_language_server import DrupalLanguageServer
 from drupalls.utils.resolve_class_file import resolve_class_file
 from drupalls.workspace.services_cache import ServiceDefinition, ServicesCache
+from drupalls.workspace.cache import WorkspaceCache
+from drupalls.workspace.classes_cache import ClassesCache
+from typing import cast
 
 
 # Check for service patterns
@@ -96,6 +100,13 @@ class ServicesCompletionCapability(CompletionCapability):
 
     async def complete(self, params: CompletionParams) -> CompletionList:
         """Provide service name completions."""
+        # Don't provide service completions if cursor is after a complete service call
+        doc = self.server.workspace.get_text_document(params.text_document.uri)
+        line = doc.lines[params.position.line]
+        line_prefix = line[:params.position.character]
+        if line_prefix.endswith('->'):
+            return CompletionList(is_incomplete=False, items=[])
+
         if not self.workspace_cache:
             return CompletionList(is_incomplete=False, items=[])
 
@@ -405,11 +416,11 @@ class ServicesYamlDefinitionCapability(DefinitionCapability):
         Find the line number where the class is declared.
 
         Searches for patterns like:
-        - class LoggerChannelFactory
-        - final class LoggerChannelFactory
-        - abstract class LoggerChannelFactory
-        - interface LoggerChannelFactoryInterface
-        - trait LoggerChannelFactoryTrait
+        - class ClassName
+        - final class ClassName
+        - abstract class ClassName
+        - interface ClassNameInterface
+        - trait ClassNameTrait
 
         Args:
             file_path: Path to PHP file
@@ -596,3 +607,172 @@ class ServicesReferencesCapability(ReferencesCapability):
                         message=f"Error searching {file_path}: {e}",
                     )
                 )
+
+class ServiceMethodCompletionCapability(CompletionCapability):
+    """Provides completion for methods on Drupal service objects."""
+
+    @property
+    def name(self) -> str:
+        return "Service Method Completion"
+
+    @property
+    def description(self) -> str:
+        return "Provides auto-completion for methods on Drupal service objects."
+
+    def __init__(self, server: DrupalLanguageServer):
+        super().__init__(server)
+        # Removed direct cache assignments from __init__
+        # self.services_cache: ServicesCache = self.server.workspace_cache.caches["services"]
+        # self.classes_cache: ClassesCache = self.server.workspace_cache.caches["classes"]
+
+    async def can_handle(self, params: CompletionParams) -> bool:
+        """
+        Determines if this capability can handle the current completion request.
+        Checks if the cursor is positioned after '->' on a line that contains
+        a Drupal service call.
+        """
+        document = self.server.workspace.get_text_document(params.text_document.uri)
+        line = document.lines[params.position.line]
+        trigger_char = params.context.trigger_character if params.context else None
+
+        # Debug logging
+        self.server.window_log_message(
+            LogMessageParams(
+                type=MessageType.Info,
+                message=f"ServiceMethodCompletionCapability.can_handle called: trigger_char={trigger_char}, line={line[:100]}..."
+            )
+        )
+
+        # Check if the line contains a service call pattern ending with ->
+        service_id = self._extract_service_id_from_line(line, params.position)
+        self.server.window_log_message(
+            LogMessageParams(
+                type=MessageType.Info,
+                message=f"ServiceMethodCompletionCapability: extracted service_id={service_id}, trigger_char={trigger_char}"
+            )
+        )
+
+        # Only handle if we found a service call pattern
+        return service_id is not None
+
+    async def complete(self, params: CompletionParams) -> CompletionList | None:
+        """
+        Provides completion items for methods of the identified Drupal service.
+        """
+        self.server.window_log_message(
+            LogMessageParams(
+                type=MessageType.Info,
+                message="ServiceMethodCompletionCapability.complete called"
+            )
+        )
+
+        if not self.server.workspace_cache:
+            self.server.window_log_message(
+                LogMessageParams(
+                    type=MessageType.Info,
+                    message="ServiceMethodCompletionCapability: no workspace_cache"
+                )
+            )
+            return None
+
+        # Access caches here, after checking workspace_cache
+        services_cache_raw = self.server.workspace_cache.caches.get("services")
+        classes_cache_raw = self.server.workspace_cache.caches.get("classes")
+
+        if not services_cache_raw or not classes_cache_raw:
+            self.server.window_log_message(
+                LogMessageParams(
+                    type=MessageType.Warning,
+                    message="Services or Classes cache not available.",
+                )
+            )
+            return None
+        
+        services_cache = cast(ServicesCache, services_cache_raw)
+        classes_cache = cast(ClassesCache, classes_cache_raw)
+
+        document = self.server.workspace.get_text_document(params.text_document.uri)
+        line = document.lines[params.position.line]
+        service_id = self._extract_service_id_from_line(line, params.position)
+
+        self.server.window_log_message(
+            LogMessageParams(
+                type=MessageType.Info,
+                message=f"ServiceMethodCompletionCapability.complete: service_id={service_id}, line={line[:100]}..."
+            )
+        )
+
+        if not service_id:
+            return None
+
+        service_definition_raw = services_cache.get(service_id)
+        if not service_definition_raw: # Check for None first
+            self.server.window_log_message(
+                LogMessageParams(
+                    type=MessageType.Info,
+                    message=f"Could not find service definition for service ID: {service_id}"
+                )
+            )
+            return None
+        
+        service_definition = cast(ServiceDefinition, service_definition_raw)
+
+        if not service_definition.class_name: # Now class_name is accessible
+            self.server.window_log_message(
+                LogMessageParams(
+                    type=MessageType.Info,
+                    message=f"Service definition for {service_id} has no class name."
+                )
+            )
+            return None
+
+        class_name = service_definition.class_name
+        methods = classes_cache.get_methods(class_name)
+
+        self.server.window_log_message(
+            LogMessageParams(
+                type=MessageType.Info,
+                message=f"Found {len(methods) if methods else 0} methods for class: {class_name}"
+            )
+        )
+
+        if not methods:
+            self.server.window_log_message(
+                LogMessageParams(
+                    type=MessageType.Info,
+                    message=f"No methods found for class: {class_name}, providing fallback methods"
+                )
+            )
+            # Fallback: provide common method names when class methods are not available
+            methods = ["get", "create", "build", "load", "save", "delete"]
+
+        items: list[CompletionItem] = []
+        for method_name in methods:
+            items.append(
+                CompletionItem(
+                    label=method_name,
+                    kind=CompletionItemKind.Method,
+                    insert_text=f"{method_name}()",
+                    insert_text_format=InsertTextFormat.Snippet,
+                    detail=f"Method of {class_name}",
+                )
+            )
+
+        return CompletionList(is_incomplete=False, items=items)
+
+    def _extract_service_id_from_line(
+        self, line: str, position: Position
+    ) -> str | None:
+        """
+        Extracts the service ID from a line containing a Drupal service call
+        up to the current cursor position.
+        """
+        line_prefix = line[:position.character]
+        # Pattern to find the service ID part followed by '->'
+        service_id_pattern = r"(?:\\Drupal::service\(['\"](?P<service_id1>[a-zA-Z0-9_.-]+)['\"]\)|\\Drupal::getContainer\(\)->get\(['\"](?P<service_id2>[a-zA-Z0-9_.-]+)['\"]\))->"
+        
+        matches = list(re.finditer(service_id_pattern, line_prefix))
+        if matches:
+            last_match = matches[-1]
+            return last_match.group("service_id1") or last_match.group("service_id2")
+        return None

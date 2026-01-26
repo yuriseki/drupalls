@@ -92,7 +92,7 @@ class CompletionCapability(Capability):
         pass
 
     @abstractmethod
-    async def complete(self, params: CompletionParams) -> CompletionList:
+    async def complete(self, params: CompletionParams) -> CompletionList | None:
         """
         Provide completion items.
 
@@ -198,6 +198,7 @@ class CapabilityManager:
                 ServicesHoverCapability,
                 ServicesYamlDefinitionCapability,
                 ServicesReferencesCapability,
+                ServiceMethodCompletionCapability,
             )
             from drupalls.lsp.capabilities.routing_capabilities import (
                 RoutesCompletionCapability,
@@ -216,6 +217,7 @@ class CapabilityManager:
                 "services_definition": ServicesDefinitionCapability(server),
                 "services_yaml_definition": ServicesYamlDefinitionCapability(server),
                 "services_references": ServicesReferencesCapability(server),
+                "service_method_completion": ServiceMethodCompletionCapability(server),
                 "routes_completion": RoutesCompletionCapability(server),
                 "route_handler_completion": RouteHandlerCompletionCapability(server),
                 "route_method_completion": RouteMethodCompletionCapability(server),
@@ -264,7 +266,8 @@ class CapabilityManager:
         for capability in self.get_capabilities_by_type(CompletionCapability):
             if await capability.can_handle(params):
                 result = await capability.complete(params)  # pyright: ignore
-                all_items.extend(result.items)
+                if result:
+                    all_items.extend(result.items)
 
         return CompletionList(is_incomplete=False, items=all_items)
 

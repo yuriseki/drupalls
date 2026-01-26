@@ -95,20 +95,21 @@ class ClassesCache(CachedWorkspace):
                 if not base_path.exists():
                     continue
 
-                # Special handling for core: only scan core/modules
+                # Special handling for core: scan core/modules and core/lib
                 if base_dir == "core":
-                    core_modules_path = base_path / "modules"
-                    if core_modules_path.exists():
-                        for root, dirs, files in os.walk(core_modules_path):
-                            # Skip common directories that don't contain classes
-                            dirs[:] = [d for d in dirs if d not in {
-                                '.git', 'node_modules', 'vendor', 'sites', 'files',
-                                '.drupalls', 'css', 'js', 'images', 'libraries'
-                            }]
+                    for sub_dir in ["modules", "lib"]:
+                        core_path = base_path / sub_dir
+                        if core_path.exists():
+                            for root, dirs, files in os.walk(core_path):
+                                # Skip common directories that don't contain classes
+                                dirs[:] = [d for d in dirs if d not in {
+                                    '.git', 'node_modules', 'vendor', 'sites', 'files',
+                                    '.drupalls', 'css', 'js', 'images', 'libraries'
+                                }]
 
-                            for file in files:
-                                if file.endswith('.php'):
-                                    php_files.append(Path(root) / file)
+                                for file in files:
+                                    if file.endswith('.php'):
+                                        php_files.append(Path(root) / file)
                 else:
                     # For modules, profiles, themes: scan all subdirectories
                     for root, dirs, files in os.walk(base_path):

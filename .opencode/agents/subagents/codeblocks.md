@@ -1,7 +1,7 @@
 ---
 description: Extracts code blocks from documentation, creates sandbox files in drafts/, validates Python syntax, and reports correctness to doc-writer.
 mode: subagent
-model: github-copilot/gpt-4.1
+model: google/gemini-2.5-flash
 temperature: 0.1
 tools:
   read: true

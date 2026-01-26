@@ -1,7 +1,7 @@
 ---
 description: Fast codebase explorer for DrupalLS. Investigates implementation details, finds patterns, and reports findings for documentation.
 mode: subagent
-model: github-copilot/gpt-4.1
+model: google/gemini-2.5-flash
 temperature: 0.1
 tools:
   read: true

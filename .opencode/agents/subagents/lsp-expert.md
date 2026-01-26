@@ -1,7 +1,7 @@
 ---
 description: LSP protocol specialist for DrupalLS. Provides guidance on Language Server Protocol features, pygls v2 patterns, and LSP best practices.
 mode: subagent
-model: github-copilot/gpt-4.1
+model: google/gemini-2.5-flash
 temperature: 0.2
 tools:
   read: true

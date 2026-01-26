@@ -13,9 +13,11 @@ from unittest.mock import Mock
 import pytest
 import pytest_asyncio
 from lsprotocol.types import (
+    CompletionItemKind,
     CompletionParams,
     DefinitionParams,
     HoverParams,
+    InsertTextFormat,
     Position,
     ReferenceContext,
     ReferenceParams,
@@ -28,6 +30,7 @@ from drupalls.lsp.capabilities.services_capabilities import (
     ServicesHoverCapability,
     ServicesReferencesCapability,
     ServicesYamlDefinitionCapability,
+    ServiceMethodCompletionCapability,
 )
 from drupalls.lsp.server import create_server
 from drupalls.workspace.cache import WorkspaceCache
@@ -83,7 +86,12 @@ class LoggerChannelFactory {
 namespace Drupal\\Core\\Entity;
 
 class EntityTypeManager {
-  // Implementation
+  public function getDefinitions() {
+    // Implementation
+  }
+  public function getStorage($entity_type) {
+    // Implementation
+  }
 }
 """
     )
@@ -207,6 +215,245 @@ async def test_services_completion_returns_all_services(drupal_workspace):
         logger_item.documentation if isinstance(logger_item.documentation, str) else ""
     )
     assert "core" in doc_str
+
+
+# ============================================================================
+# ServiceMethodCompletionCapability Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_service_method_completion_can_handle_arrow_after_service(drupal_workspace):
+    """Test that method completion capability detects '->' after service calls."""
+    workspace = drupal_workspace
+    server = workspace["server"]
+    mock_workspace = workspace["mock_workspace"]
+
+    # Mock document with service call followed by ->
+    mock_doc = Mock()
+    mock_doc.lines = ["$logger = \\Drupal::service('logger.factory')->"]
+    mock_workspace.get_text_document.return_value = mock_doc
+
+    capability = ServiceMethodCompletionCapability(server)
+
+    # Test with > trigger character
+    params = CompletionParams(
+        text_document=TextDocumentIdentifier(uri="file:///test.php"),
+        position=Position(line=0, character=45),  # After ->
+        context=Mock(trigger_character=">"),
+    )
+    assert await capability.can_handle(params) is True
+
+
+@pytest.mark.asyncio
+async def test_service_method_completion_can_handle_completion_request_at_arrow(drupal_workspace):
+    """Test that capability handles completion requests at -> position."""
+    workspace = drupal_workspace
+    server = workspace["server"]
+    mock_workspace = workspace["mock_workspace"]
+
+    # Mock document
+    mock_doc = Mock()
+    mock_doc.lines = ["$logger = \\Drupal::service('logger.factory')->"]
+    mock_workspace.get_text_document.return_value = mock_doc
+
+    capability = ServiceMethodCompletionCapability(server)
+
+    # Test without trigger character but cursor after >
+    params = CompletionParams(
+        text_document=TextDocumentIdentifier(uri="file:///test.php"),
+        position=Position(line=0, character=45),  # After >
+        context=None,
+    )
+    assert await capability.can_handle(params) is True
+
+
+@pytest.mark.asyncio
+async def test_service_method_completion_cannot_handle_non_arrow_trigger(drupal_workspace):
+    """Test that capability ignores non-arrow triggers."""
+    workspace = drupal_workspace
+    server = workspace["server"]
+    mock_workspace = workspace["mock_workspace"]
+
+    mock_doc = Mock()
+    mock_doc.lines = ["$logger = \\Drupal::service('logger.factory')"]
+    mock_workspace.get_text_document.return_value = mock_doc
+
+    capability = ServiceMethodCompletionCapability(server)
+
+    params = CompletionParams(
+        text_document=TextDocumentIdentifier(uri="file:///test.php"),
+        position=Position(line=0, character=40),
+        context=Mock(trigger_character="("),  # Wrong trigger
+    )
+    assert await capability.can_handle(params) is False
+
+
+@pytest.mark.asyncio
+async def test_service_method_completion_cannot_handle_no_service_call(drupal_workspace):
+    """Test that capability ignores lines without service calls."""
+    workspace = drupal_workspace
+    server = workspace["server"]
+    mock_workspace = workspace["mock_workspace"]
+
+    mock_doc = Mock()
+    mock_doc.lines = ["$variable = 'some value'->"]
+    mock_workspace.get_text_document.return_value = mock_doc
+
+    capability = ServiceMethodCompletionCapability(server)
+
+    params = CompletionParams(
+        text_document=TextDocumentIdentifier(uri="file:///test.php"),
+        position=Position(line=0, character=25),
+        context=Mock(trigger_character=">"),
+    )
+    assert await capability.can_handle(params) is False
+
+
+@pytest.mark.asyncio
+async def test_service_method_completion_returns_methods_for_logger_factory(drupal_workspace):
+    """Test that completion returns methods for LoggerChannelFactory."""
+    workspace = drupal_workspace
+    server = workspace["server"]
+    mock_workspace = workspace["mock_workspace"]
+
+    mock_doc = Mock()
+    mock_doc.lines = ["$logger = \\Drupal::service('logger.factory')->"]
+    mock_workspace.get_text_document.return_value = mock_doc
+
+    capability = ServiceMethodCompletionCapability(server)
+
+    params = CompletionParams(
+        text_document=TextDocumentIdentifier(uri="file:///test.php"),
+        position=Position(line=0, character=45),
+        context=Mock(trigger_character=">"),
+    )
+
+    result = await capability.complete(params)
+
+    assert result is not None
+    assert result.is_incomplete is False
+    assert len(result.items) == 1  # get method
+
+    item = result.items[0]
+    assert item.label == "get"
+    assert item.kind == CompletionItemKind.Method
+    assert item.insert_text == "get()"
+    assert item.insert_text_format == InsertTextFormat.Snippet
+    assert item.detail is not None and "LoggerChannelFactory" in item.detail
+
+
+@pytest.mark.asyncio
+async def test_service_method_completion_returns_methods_for_entity_manager(drupal_workspace):
+    """Test that completion returns methods for EntityTypeManager."""
+    workspace = drupal_workspace
+    server = workspace["server"]
+    mock_workspace = workspace["mock_workspace"]
+
+    mock_doc = Mock()
+    mock_doc.lines = ["$manager = \\Drupal::getContainer()->get('entity_type.manager')->"]
+    mock_workspace.get_text_document.return_value = mock_doc
+
+    capability = ServiceMethodCompletionCapability(server)
+
+    params = CompletionParams(
+        text_document=TextDocumentIdentifier(uri="file:///test.php"),
+        position=Position(line=0, character=60),
+        context=Mock(trigger_character=">"),
+    )
+
+    result = await capability.complete(params)
+
+    assert result is not None
+    assert result.is_incomplete is False
+    assert len(result.items) == 2  # getDefinitions and getStorage
+
+    method_names = [item.label for item in result.items]
+    assert "getDefinitions" in method_names
+    assert "getStorage" in method_names
+
+    for item in result.items:
+        assert item.kind == CompletionItemKind.Method
+        assert item.insert_text_format == InsertTextFormat.Snippet
+        assert item.detail is not None and "EntityTypeManager" in item.detail
+
+
+@pytest.mark.asyncio
+async def test_service_method_completion_returns_none_for_unknown_service(drupal_workspace):
+    """Test that completion returns None for unknown service IDs."""
+    workspace = drupal_workspace
+    server = workspace["server"]
+    mock_workspace = workspace["mock_workspace"]
+
+    mock_doc = Mock()
+    mock_doc.lines = ["$unknown = \\Drupal::service('unknown.service')->"]
+    mock_workspace.get_text_document.return_value = mock_doc
+
+    capability = ServiceMethodCompletionCapability(server)
+
+    params = CompletionParams(
+        text_document=TextDocumentIdentifier(uri="file:///test.php"),
+        position=Position(line=0, character=45),
+        context=Mock(trigger_character=">"),
+    )
+
+    result = await capability.complete(params)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_service_method_completion_returns_empty_for_class_without_methods(drupal_workspace):
+    """Test that completion returns empty list when class has no methods."""
+    workspace = drupal_workspace
+    server = workspace["server"]
+    mock_workspace = workspace["mock_workspace"]
+
+    # Create a service with a class that has no methods
+    # We can mock the cache or add a new service, but for simplicity, assume EntityTypeManager had no methods
+    # Since we added methods, let's create a new service in the cache
+
+    # Add a service with empty class
+    empty_class_php = workspace["tmp_path"] / "core" / "lib" / "Drupal" / "Core" / "EmptyClass.php"
+    empty_class_php.write_text(
+        """<?php
+namespace Drupal\\Core;
+class EmptyClass {}
+"""
+    )
+
+    # Reinitialize cache to pick up new file
+    await server.workspace_cache.initialize()
+
+    # Mock document
+    mock_doc = Mock()
+    mock_doc.lines = ["$empty = \\Drupal::service('empty.service')->"]
+    mock_workspace.get_text_document.return_value = mock_doc
+
+    # Temporarily add service to cache
+    from pathlib import Path
+    services_cache = server.workspace_cache.caches["services"]
+    services_cache._services["empty.service"] = ServiceDefinition(
+        id="empty.service",
+        description="",
+        file_path=Path(str(empty_class_php)),
+        line_number=3,
+        class_name="Drupal\\Core\\EmptyClass",
+        class_file_path=str(empty_class_php),
+    )
+
+    capability = ServiceMethodCompletionCapability(server)
+
+    params = CompletionParams(
+        text_document=TextDocumentIdentifier(uri="file:///test.php"),
+        position=Position(line=0, character=45),
+        context=Mock(trigger_character=">"),
+    )
+
+    result = await capability.complete(params)
+
+    assert result is not None
+    assert result.is_incomplete is False
+    assert len(result.items) == 0
 
 
 # ============================================================================

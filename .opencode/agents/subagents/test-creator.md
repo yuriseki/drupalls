@@ -1,7 +1,7 @@
 ---
 description: Creates comprehensive pytest test files for DrupalLS Python modules. Tests all functions, mocks only external dependencies, never mocks internal functions.
 mode: subagent
-model: github-copilot/gpt-4.1
+model: google/gemini-2.5-flash
 temperature: 0.2
 tools:
   read: true
